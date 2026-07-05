@@ -34,7 +34,15 @@ class HttpCore:
 
     def request(self, method: str, path: str, *, json: Any = None, params: Any = None) -> Any:
         for attempt in (1, 2):
-            resp = self._sync.request(method, path, json=json, params=params)
+            try:
+                resp = self._sync.request(method, path, json=json, params=params)
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                # ponytail: single retry, no backoff jitter; add tenacity if flakiness demands it
+                if attempt == 1:
+                    continue
+                raise ProviderError(
+                    f"{self.provider} connection error: {exc}", provider=self.provider
+                ) from exc
             if resp.status_code < 400:
                 return self._parse(resp)
             if resp.status_code in _RETRY_STATUS and attempt == 1:
@@ -44,11 +52,18 @@ class HttpCore:
 
     async def arequest(self, method: str, path: str, *, json: Any = None, params: Any = None) -> Any:
         for attempt in (1, 2):
-            resp = await self._async.request(method, path, json=json, params=params)
+            try:
+                resp = await self._async.request(method, path, json=json, params=params)
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                # ponytail: single retry, no backoff jitter; add tenacity if flakiness demands it
+                if attempt == 1:
+                    continue
+                raise ProviderError(
+                    f"{self.provider} connection error: {exc}", provider=self.provider
+                ) from exc
             if resp.status_code < 400:
                 return self._parse(resp)
             if resp.status_code in _RETRY_STATUS and attempt == 1:
-                # ponytail: single retry, no backoff jitter; add tenacity if flakiness demands it
                 continue
             self._raise(resp)
         self._raise(resp)  # pragma: no cover
