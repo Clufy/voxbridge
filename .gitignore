@@ -13,3 +13,4 @@ build/
 htmlcov/
 .env
 site/
+uv.lock
