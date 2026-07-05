@@ -1,0 +1,17 @@
+{
+  "id": "call_def456",
+  "orgId": "org_sanitized000",
+  "status": "ended",
+  "type": "outboundPhoneCall",
+  "assistantId": "assistant_abc123",
+  "phoneNumberId": "phone_sanitized000",
+  "customer": {
+    "number": "+15550000000"
+  },
+  "artifact": {
+    "transcript": "AI: Hello, this is Scheduler calling.\nUser: Hi, who is this?\nAI: I'm calling to confirm your appointment.",
+    "recordingUrl": "https://example.com/rec.wav"
+  },
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:05:00.000Z"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "assistant_abc123",
+  "orgId": "org_sanitized000",
+  "name": "Scheduler",
+  "firstMessage": "Hi, this is Scheduler. How can I help you today?",
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a friendly scheduling assistant. Be concise and helpful."
+      }
+    ]
+  },
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "rachel"
+  },
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
