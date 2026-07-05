@@ -29,6 +29,24 @@ def test_voice_parsing_keeps_11labs_token_as_is() -> None:
     assert _voice("11labs:rachel") == {"provider": "11labs", "voiceId": "rachel"}
 
 
+def test_vapi_to_agent_finds_system_prompt_not_at_index_0() -> None:
+    # System prompt must be located by role, not by position: a non-system
+    # message may precede it. Guards against a naive messages[0] refactor.
+    data = {
+        "id": "a1",
+        "name": "S",
+        "model": {
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "assistant", "content": "ignore me"},
+                {"role": "system", "content": "real prompt"},
+            ],
+        },
+        "voice": {"provider": "11labs", "voiceId": "rachel"},
+    }
+    assert vapi_to_agent(data).system_prompt == "real prompt"
+
+
 def test_voice_round_trips_through_vapi_and_back() -> None:
     spec = "elevenlabs:rachel"
     voice_dict = _voice(spec)
