@@ -1,6 +1,9 @@
-import httpx, pytest, respx
+import httpx
+import pytest
+import respx
+
 from voxbridge._http import HttpCore
-from voxbridge.errors import AuthError, RateLimited, ProviderError
+from voxbridge.errors import AuthError, ProviderError, RateLimited
 
 BASE = "https://api.example.com"
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Any
+
 
 class VoxBridgeError(Exception):
     """Base for all voxbridge errors."""

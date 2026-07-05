@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
+
 
 class _Base(BaseModel):
     model_config = ConfigDict(extra="ignore")

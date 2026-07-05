@@ -1,12 +1,17 @@
 from __future__ import annotations
+
 from typing import Any
+
 import httpx
+
 from .errors import AuthError, ProviderError, RateLimited
 
 _RETRY_STATUS = {429, 500, 502, 503, 504}
 
 class HttpCore:
-    def __init__(self, base_url: str, api_key: str, provider: str, *, timeout: float = 30.0) -> None:
+    def __init__(
+        self, base_url: str, api_key: str, provider: str, *, timeout: float = 30.0
+    ) -> None:
         self.provider = provider
         headers = {"Authorization": f"Bearer {api_key}"}
         self._sync = httpx.Client(base_url=base_url, headers=headers, timeout=timeout)
@@ -50,7 +55,9 @@ class HttpCore:
             self._raise(resp)
         self._raise(resp)  # pragma: no cover
 
-    async def arequest(self, method: str, path: str, *, json: Any = None, params: Any = None) -> Any:
+    async def arequest(
+        self, method: str, path: str, *, json: Any = None, params: Any = None
+    ) -> Any:
         for attempt in (1, 2):
             try:
                 resp = await self._async.request(method, path, json=json, params=params)

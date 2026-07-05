@@ -2,7 +2,9 @@ from voxbridge.models import Agent, Call, Tool
 
 
 def test_agent_roundtrips_and_defaults():
-    a = Agent(name="Scheduler", system_prompt="be helpful", model="gpt-4o", voice="elevenlabs:rachel")
+    a = Agent(
+        name="Scheduler", system_prompt="be helpful", model="gpt-4o", voice="elevenlabs:rachel"
+    )
     assert a.id is None and a.tools == [] and a.raw == {}
     dumped = a.model_dump()
     assert dumped["name"] == "Scheduler"

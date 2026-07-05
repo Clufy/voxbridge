@@ -1,7 +1,12 @@
-import pytest
 from voxbridge.errors import (
-    VoxBridgeError, AuthError, RateLimited, ProviderError, NotSupported, SignatureError,
+    AuthError,
+    NotSupported,
+    ProviderError,
+    RateLimited,
+    SignatureError,
+    VoxBridgeError,
 )
+
 
 def test_hierarchy():
     for exc in (AuthError, RateLimited, ProviderError, NotSupported, SignatureError):
