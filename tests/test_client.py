@@ -25,10 +25,9 @@ def test_selects_vapi() -> None:
 
 
 def test_public_exports() -> None:
-    assert voxbridge.VoiceClient
-    assert voxbridge.Agent
-    assert voxbridge.CallEnded
-    assert voxbridge.AuthError
+    for name in ("VoiceClient", "Agent", "Call", "Tool", "CallEnded", "WebhookEvent", "AuthError"):
+        assert name in voxbridge.__all__
+        assert hasattr(voxbridge, name)
 
 
 @respx.mock
@@ -42,3 +41,35 @@ def test_delegates_create_agent() -> None:
     )
     assert a.id == ASSISTANT["id"]
     c.close()
+
+
+class _SpyProvider:
+    """Records close/aclose so context-manager delegation can be asserted."""
+
+    def __init__(self) -> None:
+        self.closed = False
+        self.aclosed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+    async def aclose(self) -> None:
+        self.aclosed = True
+
+
+def test_sync_context_manager_closes_provider() -> None:
+    c = VoiceClient("vapi", "k")
+    spy = _SpyProvider()
+    c._provider = spy  # type: ignore[assignment]
+    with c as entered:
+        assert entered is c
+    assert spy.closed
+
+
+async def test_async_context_manager_closes_provider() -> None:
+    c = VoiceClient("vapi", "k")
+    spy = _SpyProvider()
+    c._provider = spy  # type: ignore[assignment]
+    async with c as entered:
+        assert entered is c
+    assert spy.aclosed

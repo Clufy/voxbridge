@@ -32,3 +32,11 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+# The shipped library (src) is fully strict. Tests stay type-checked but are
+# exempt from require-return-annotation noise on every test function.
+# ponytail: relax two rules for tests, not all of strict — real type bugs still fail.
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false

@@ -55,12 +55,12 @@ def test_get_agent() -> None:
 
 @respx.mock
 def test_delete_agent() -> None:
-    respx.delete("https://api.vapi.ai/assistant/assistant_abc123").mock(
+    route = respx.delete("https://api.vapi.ai/assistant/assistant_abc123").mock(
         return_value=httpx.Response(204)
     )
     p = VapiProvider("k")
-    result = p.delete_agent("assistant_abc123")
-    assert result is None
+    p.delete_agent("assistant_abc123")  # returns None; asserting the call was made
+    assert route.called
     p.close()
 
 
