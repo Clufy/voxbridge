@@ -1,0 +1,12 @@
+{
+  "agent_id": "agent_sanitized000",
+  "agent_name": "Scheduler",
+  "voice_id": "11labs-Rachel",
+  "response_engine": {
+    "type": "retell-llm",
+    "llm_id": "llm_sanitized000"
+  },
+  "language": "en-US",
+  "webhook_url": "https://example.com/webhooks/retell",
+  "last_modification_timestamp": 1735689600000
+}

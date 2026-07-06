@@ -1,0 +1,9 @@
+{
+  "llm_id": "llm_sanitized000",
+  "version": 0,
+  "general_prompt": "You are a friendly scheduling assistant. Be concise and helpful.",
+  "begin_message": "Hi, this is Scheduler. How can I help you today?",
+  "model": "gpt-4.1",
+  "general_tools": [],
+  "last_modification_timestamp": 1735689600000
+}

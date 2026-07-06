@@ -1,0 +1,11 @@
+{
+  "call_id": "call_sanitized000",
+  "agent_id": "agent_sanitized000",
+  "call_type": "phone_call",
+  "call_status": "ended",
+  "from_number": "+15550000001",
+  "to_number": "+15550000000",
+  "transcript": "Agent: Hello, this is Scheduler calling.\nUser: Hi, who is this?\nAgent: I'm calling to confirm your appointment.",
+  "start_timestamp": 1735689600000,
+  "end_timestamp": 1735689900000
+}
