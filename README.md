@@ -65,6 +65,8 @@ async with VoiceClient(provider="retell", api_key="sk-...") as client:
 ### Webhooks
 
 ```python
+from voxbridge import CallEnded, TranscriptChunk
+
 event = client.parse_webhook(request.headers, request.body)  # verifies signature
 match event:
     case CallEnded(call_id=cid, transcript=t, ended_reason=r):

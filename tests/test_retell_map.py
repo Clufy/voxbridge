@@ -85,6 +85,7 @@ def test_retell_to_call_extracts_transcript_numbers_and_status() -> None:
     data = json.loads((FX / "call.json").read_text())
     c = retell_to_call(data)
     assert c.id == data["call_id"]
+    assert c.agent_id == data["agent_id"]
     assert c.status == data["call_status"]
     assert c.to_number == data["to_number"]
     assert c.from_number == data["from_number"]

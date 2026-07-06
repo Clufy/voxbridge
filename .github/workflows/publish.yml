@@ -5,7 +5,13 @@ on:
     tags: ["v*"]
 
 jobs:
+  # Re-run the full ruff + mypy + pytest gate against the exact tagged commit
+  # before the irreversible upload — PyPI forbids re-uploading a version.
+  test:
+    uses: ./.github/workflows/ci.yml
+
   build-and-publish:
+    needs: test
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

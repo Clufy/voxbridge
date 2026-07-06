@@ -95,6 +95,7 @@ def retell_to_call(data: dict[str, Any]) -> Call:
     """Map a Retell Call payload to a voxbridge Call, preserving raw."""
     return Call(
         id=data.get("call_id"),
+        agent_id=data.get("agent_id"),
         status=data.get("call_status"),
         to_number=data.get("to_number"),
         from_number=data.get("from_number"),

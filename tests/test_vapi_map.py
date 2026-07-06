@@ -127,10 +127,18 @@ def test_vapi_to_agent_defaults_system_prompt_when_no_system_message() -> None:
     assert a.system_prompt == ""
 
 
+def test_vapi_to_agent_defaults_model_when_absent() -> None:
+    # A payload with no model block must not KeyError.
+    a = vapi_to_agent({"id": "a1", "name": "S",
+                       "voice": {"provider": "11labs", "voiceId": "rachel"}})
+    assert a.model == "" and a.id == "a1"
+
+
 def test_vapi_to_call_reads_transcript_and_number() -> None:
     data = json.loads((FX / "call.json").read_text())
     c = vapi_to_call(data)
     assert c.id == data["id"]
+    assert c.agent_id == data["assistantId"]
     assert c.status == data["status"]
     assert c.to_number == "+15550000000"
     assert c.from_number == data["phoneNumberId"]

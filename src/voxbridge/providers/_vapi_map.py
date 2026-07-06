@@ -86,15 +86,15 @@ def agent_to_vapi(agent: Agent) -> dict[str, Any]:
 
 def vapi_to_agent(data: dict[str, Any]) -> Agent:
     """Map a Vapi Assistant payload to a voxbridge Agent, preserving raw."""
-    model_block = data.get("model", {})
-    messages = model_block.get("messages", [])
+    model_block = data.get("model") or {}
+    messages = model_block.get("messages") or []
     system_prompt = ""
     for message in messages:
         if message.get("role") == "system":
             system_prompt = message.get("content", "")
             break
 
-    voice_block = data.get("voice", {})
+    voice_block = data.get("voice") or {}
     voice_provider = voice_block.get("provider", "")
     voice_id = voice_block.get("voiceId", "")
     voice = f"{voice_provider}:{voice_id}"
@@ -103,7 +103,7 @@ def vapi_to_agent(data: dict[str, Any]) -> Agent:
         id=data.get("id"),
         name=data.get("name", ""),
         first_message=data.get("firstMessage"),
-        model=model_block["model"],
+        model=model_block.get("model", ""),
         system_prompt=system_prompt,
         voice=voice,
         raw=data,
@@ -116,6 +116,7 @@ def vapi_to_call(data: dict[str, Any]) -> Call:
     artifact = data.get("artifact") or {}
     return Call(
         id=data.get("id"),
+        agent_id=data.get("assistantId"),
         status=data.get("status"),
         to_number=customer.get("number"),
         from_number=data.get("phoneNumberId"),
