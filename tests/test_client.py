@@ -73,3 +73,55 @@ async def test_async_context_manager_closes_provider() -> None:
     async with c as entered:
         assert entered is c
     assert spy.aclosed
+
+
+def test_all_delegations_forward_to_provider() -> None:
+    from unittest.mock import MagicMock
+
+    c = VoiceClient("vapi", "k")
+    m = MagicMock()
+    c._provider = m  # type: ignore[assignment]
+
+    agent = Agent(name="S", system_prompt="x", model="gpt-4o", voice="v")
+    c.create_agent(agent)
+    m.create_agent.assert_called_once_with(agent)
+    c.update_agent("a1", agent)
+    m.update_agent.assert_called_once_with("a1", agent)
+    c.get_agent("a1")
+    m.get_agent.assert_called_once_with("a1")
+    c.delete_agent("a1")
+    m.delete_agent.assert_called_once_with("a1")
+    c.create_call("a1", "+1", from_number="+2")
+    m.create_call.assert_called_once_with("a1", "+1", from_number="+2")
+    c.get_call("c1")
+    m.get_call.assert_called_once_with("c1")
+    c.list_calls()
+    m.list_calls.assert_called_once_with()
+    c.parse_webhook({"h": "v"}, b"{}")
+    m.parse_webhook.assert_called_once_with({"h": "v"}, b"{}")
+    c.verify_signature({"h": "v"}, b"{}")
+    m.verify_signature.assert_called_once_with({"h": "v"}, b"{}")
+
+
+async def test_all_async_delegations_forward_to_provider() -> None:
+    from unittest.mock import AsyncMock
+
+    c = VoiceClient("vapi", "k")
+    m = AsyncMock()
+    c._provider = m  # type: ignore[assignment]
+
+    agent = Agent(name="S", system_prompt="x", model="gpt-4o", voice="v")
+    await c.acreate_agent(agent)
+    m.acreate_agent.assert_awaited_once_with(agent)
+    await c.aupdate_agent("a1", agent)
+    m.aupdate_agent.assert_awaited_once_with("a1", agent)
+    await c.aget_agent("a1")
+    m.aget_agent.assert_awaited_once_with("a1")
+    await c.adelete_agent("a1")
+    m.adelete_agent.assert_awaited_once_with("a1")
+    await c.acreate_call("a1", "+1", from_number="+2")
+    m.acreate_call.assert_awaited_once_with("a1", "+1", from_number="+2")
+    await c.aget_call("c1")
+    m.aget_call.assert_awaited_once_with("c1")
+    await c.alist_calls()
+    m.alist_calls.assert_awaited_once_with()

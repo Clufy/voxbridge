@@ -1,0 +1,30 @@
+site_name: voxbridge
+site_description: One interface over multiple voice-agent platforms.
+repo_url: https://github.com/Aquib/voxbridge
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - content.code.copy
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Providers: providers.md
+# SDD plan/spec live under docs/ for repo history but aren't part of the site.
+exclude_docs: |
+  superpowers/
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences

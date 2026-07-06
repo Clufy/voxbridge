@@ -72,3 +72,37 @@ def test_204_returns_none():
     core = HttpCore(BASE, "k", "vapi")
     assert core.request("GET", "/x") is None
     core.close()
+
+@respx.mock
+def test_non_json_error_body_falls_back_to_text():
+    respx.get(f"{BASE}/x").mock(return_value=httpx.Response(500, text="upstream boom"))
+    core = HttpCore(BASE, "k", "vapi")
+    with pytest.raises(ProviderError) as ei:
+        core.request("GET", "/x")
+    assert ei.value.body == "upstream boom"
+    core.close()
+
+@respx.mock
+async def test_async_retry_then_succeed():
+    respx.get(f"{BASE}/x").mock(
+        side_effect=[httpx.Response(503, json={}), httpx.Response(200, json={"ok": True})])
+    core = HttpCore(BASE, "k", "vapi")
+    assert await core.arequest("GET", "/x") == {"ok": True}
+    await core.aclose()
+
+@respx.mock
+async def test_async_generic_500_maps_to_provider_error():
+    respx.get(f"{BASE}/x").mock(return_value=httpx.Response(500, json={}))
+    core = HttpCore(BASE, "k", "vapi")
+    with pytest.raises(ProviderError):
+        await core.arequest("GET", "/x")
+    await core.aclose()
+
+@respx.mock
+async def test_async_connect_error_maps_to_provider_error_after_retry():
+    respx.get(f"{BASE}/x").mock(side_effect=httpx.ConnectError("boom"))
+    core = HttpCore(BASE, "k", "vapi")
+    with pytest.raises(ProviderError) as ei:
+        await core.arequest("GET", "/x")
+    assert ei.value.provider == "vapi"
+    await core.aclose()
