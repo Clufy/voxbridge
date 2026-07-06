@@ -1,8 +1,7 @@
 """VoiceClient: the public facade over provider adapters.
 
 Picks a provider by config string and delegates every call to that adapter.
-Only "vapi" is registered today; Task 11 adds "retell" as a one-line change
-to ``_PROVIDERS``.
+Both "vapi" and "retell" are registered.
 """
 
 from __future__ import annotations
@@ -13,15 +12,17 @@ from typing import Any, cast
 from .events import WebhookEvent
 from .models import Agent, Call
 from .providers.base import VoiceProvider
+from .providers.retell import RetellProvider
 from .providers.vapi import VapiProvider
 
-# VapiProvider doesn't yet implement the full VoiceProvider protocol (webhook
-# parsing/verification and async twins land in Tasks 13/15); the cast reflects
-# that the registry's job is only to construct adapters, not to enforce
-# completeness of the protocol at registration time.
-# Task 11 adds "retell": RetellProvider
+# Neither VapiProvider nor RetellProvider yet implements the full
+# VoiceProvider protocol (webhook parsing/verification and async twins land
+# in Tasks 13/15); the cast reflects that the registry's job is only to
+# construct adapters, not to enforce completeness of the protocol at
+# registration time.
 _PROVIDERS: dict[str, Callable[..., VoiceProvider]] = {
-    "vapi": cast(Callable[..., VoiceProvider], VapiProvider)
+    "vapi": cast(Callable[..., VoiceProvider], VapiProvider),
+    "retell": cast(Callable[..., VoiceProvider], RetellProvider),
 }
 
 
