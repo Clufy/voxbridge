@@ -1,0 +1,44 @@
+{
+  "event": "call_ended",
+  "call": {
+    "call_type": "phone_call",
+    "call_id": "call_sanitized000",
+    "agent_id": "agent_sanitized000",
+    "call_status": "ended",
+    "from_number": "+15550000001",
+    "to_number": "+15550000000",
+    "direction": "inbound",
+    "metadata": {},
+    "retell_llm_dynamic_variables": {
+      "customer_name": "Jane Doe"
+    },
+    "start_timestamp": 1735689600000,
+    "end_timestamp": 1735689645000,
+    "disconnection_reason": "user_hangup",
+    "transcript": "Agent: Hi, how can I help you today?\nUser: I'd like to check my order status.\nAgent: Sure, can I have your order number?\nUser: It's 12345.\n",
+    "transcript_object": [
+      {
+        "role": "agent",
+        "content": "Hi, how can I help you today?",
+        "words": [
+          { "word": "Hi,", "start": 0, "end": 0.32 },
+          { "word": "how", "start": 0.33, "end": 0.5 }
+        ]
+      },
+      {
+        "role": "user",
+        "content": "I'd like to check my order status.",
+        "words": [
+          { "word": "I'd", "start": 1.1, "end": 1.3 }
+        ]
+      }
+    ],
+    "transcript_with_tool_calls": [
+      {
+        "role": "agent",
+        "content": "Hi, how can I help you today?"
+      }
+    ],
+    "opt_out_sensitive_data_storage": false
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "event": "call_started",
+  "call": {
+    "call_type": "phone_call",
+    "call_id": "call_sanitized000",
+    "agent_id": "agent_sanitized000",
+    "call_status": "ongoing",
+    "from_number": "+15550000001",
+    "to_number": "+15550000000",
+    "direction": "inbound",
+    "metadata": {},
+    "retell_llm_dynamic_variables": {
+      "customer_name": "Jane Doe"
+    },
+    "start_timestamp": 1735689600000,
+    "opt_out_sensitive_data_storage": false
+  }
+}

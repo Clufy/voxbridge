@@ -15,9 +15,8 @@ from .providers.base import VoiceProvider
 from .providers.retell import RetellProvider
 from .providers.vapi import VapiProvider
 
-# Neither VapiProvider nor RetellProvider yet implements the full
-# VoiceProvider protocol (webhook parsing/verification and async twins land
-# in Tasks 13/15); the cast reflects that the registry's job is only to
+# The adapters don't yet implement the full VoiceProvider protocol (async
+# twins land in Task 15); the cast reflects that the registry's job is only to
 # construct adapters, not to enforce completeness of the protocol at
 # registration time.
 _PROVIDERS: dict[str, Callable[..., VoiceProvider]] = {
@@ -30,7 +29,12 @@ class VoiceClient:
     """Provider-agnostic entry point: same API regardless of backend."""
 
     def __init__(
-        self, provider: str, api_key: str, *, webhook_secret: str | None = None
+        self,
+        provider: str,
+        api_key: str,
+        *,
+        webhook_secret: str | None = None,
+        webhook_max_age: float | None = None,
     ) -> None:
         try:
             provider_cls = _PROVIDERS[provider]
@@ -38,7 +42,12 @@ class VoiceClient:
             raise ValueError(
                 f"unknown provider {provider!r}; choose from {sorted(_PROVIDERS)}"
             ) from None
-        self._provider: VoiceProvider = provider_cls(api_key, webhook_secret=webhook_secret)
+        kwargs: dict[str, Any] = {"webhook_secret": webhook_secret}
+        # Replay window is a Retell-only capability (Vapi's scheme has no
+        # timestamp); only forward it when the provider supports it.
+        if provider == "retell":
+            kwargs["webhook_max_age"] = webhook_max_age
+        self._provider: VoiceProvider = provider_cls(api_key, **kwargs)
 
     # -- sync -----------------------------------------------------------
 

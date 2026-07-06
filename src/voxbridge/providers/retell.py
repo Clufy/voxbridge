@@ -1,17 +1,23 @@
 """Retell provider adapter: sync agent + call CRUD over Retell's REST API.
 
-Webhook parsing/verification (parse_webhook/verify_signature) and the async
-twins of these methods are added in later tasks; this module intentionally
-implements only the sync agent/call surface.
+The async twins of these methods are added in a later task; this module
+implements the sync agent/call surface plus webhook parse/verify.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from .._http import HttpCore
+from ..errors import SignatureError
+from ..events import WebhookEvent
 from ..models import Agent, Call
+from ..webhooks import verify_retell
+from ._common import decode_webhook_body
 from ._retell_map import (
     agent_to_llm,
     agent_to_retell,
+    parse_webhook,
     phone_call_request,
     retell_to_agent,
     retell_to_call,
@@ -21,9 +27,18 @@ from ._retell_map import (
 class RetellProvider:
     """Voice provider adapter for Retell (https://api.retellai.com)."""
 
-    def __init__(self, api_key: str, *, webhook_secret: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        webhook_secret: str | None = None,
+        webhook_max_age: float | None = None,
+    ) -> None:
         self._http = HttpCore("https://api.retellai.com", api_key, "retell")
         self._webhook_secret = webhook_secret
+        # Optional replay window (seconds). Reject validly-signed but stale
+        # deliveries when set. Off by default to stay deterministic in tests.
+        self._webhook_max_age = webhook_max_age
 
     def create_agent(self, agent: Agent) -> Agent:
         # Retell splits the prompt/greeting onto a separate LLM object, so
@@ -71,6 +86,18 @@ class RetellProvider:
         data = self._http.request("POST", "/v3/list-calls", json={})
         items = data["calls"] if isinstance(data, dict) else data
         return [retell_to_call(item) for item in items]
+
+    def verify_signature(self, headers: Mapping[str, str], raw_body: bytes) -> bool:
+        if self._webhook_secret is None:
+            return True
+        return verify_retell(
+            headers, raw_body, self._webhook_secret, max_age=self._webhook_max_age
+        )
+
+    def parse_webhook(self, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:
+        if self._webhook_secret is not None and not self.verify_signature(headers, raw_body):
+            raise SignatureError("retell webhook signature verification failed")
+        return parse_webhook(decode_webhook_body(raw_body, "retell"))
 
     def close(self) -> None:
         self._http.close()

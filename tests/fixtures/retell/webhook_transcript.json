@@ -1,0 +1,38 @@
+{
+  "event": "transcript_updated",
+  "call": {
+    "call_type": "phone_call",
+    "call_id": "call_sanitized000",
+    "agent_id": "agent_sanitized000",
+    "call_status": "ongoing",
+    "from_number": "+15550000001",
+    "to_number": "+15550000000",
+    "direction": "inbound",
+    "metadata": {},
+    "start_timestamp": 1735689600000,
+    "transcript": "Agent: Hi, how can I help you today?\nUser: I'd like to check my order status.\n",
+    "transcript_object": [
+      {
+        "role": "agent",
+        "content": "Hi, how can I help you today?",
+        "words": []
+      },
+      {
+        "role": "user",
+        "content": "I'd like to check my order status.",
+        "words": []
+      }
+    ],
+    "transcript_with_tool_calls": [
+      {
+        "role": "agent",
+        "content": "Hi, how can I help you today?"
+      },
+      {
+        "role": "user",
+        "content": "I'd like to check my order status."
+      }
+    ],
+    "opt_out_sensitive_data_storage": false
+  }
+}

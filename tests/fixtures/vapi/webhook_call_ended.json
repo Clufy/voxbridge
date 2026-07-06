@@ -1,0 +1,40 @@
+{
+  "message": {
+    "type": "end-of-call-report",
+    "endedReason": "customer-ended-call",
+    "call": {
+      "id": "call_sanitized000",
+      "orgId": "org_sanitized000",
+      "type": "inboundPhoneCall"
+    },
+    "artifact": {
+      "transcript": "AI: Hello, how can I help you today?\nUser: What are your hours?\nAI: We're open 9 to 5, Monday through Friday.",
+      "recordingUrl": "https://storage.example.com/recordings/call_sanitized000.wav",
+      "messages": [
+        {
+          "role": "assistant",
+          "message": "Hello, how can I help you today?",
+          "time": 1735689601000,
+          "secondsFromStart": 1
+        },
+        {
+          "role": "user",
+          "message": "What are your hours?",
+          "time": 1735689606000,
+          "secondsFromStart": 6
+        },
+        {
+          "role": "assistant",
+          "message": "We're open 9 to 5, Monday through Friday.",
+          "time": 1735689609000,
+          "secondsFromStart": 9
+        }
+      ]
+    },
+    "analysis": {
+      "summary": "Customer asked about business hours; assistant answered.",
+      "successEvaluation": "true"
+    },
+    "timestamp": 1735689900000
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "message": {
+    "type": "transcript",
+    "role": "user",
+    "transcriptType": "final",
+    "transcript": "what are your hours",
+    "call": {
+      "id": "call_sanitized000",
+      "orgId": "org_sanitized000"
+    },
+    "timestamp": 1735689606000
+  }
+}

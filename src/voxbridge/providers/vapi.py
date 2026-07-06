@@ -1,15 +1,20 @@
 """Vapi provider adapter: sync agent + call CRUD over Vapi's REST API.
 
-Webhook parsing/verification (parse_webhook/verify_signature) and the async
-twins of these methods are added in later tasks; this module intentionally
-implements only the sync agent/call surface.
+The async twins of these methods are added in a later task; this module
+implements the sync agent/call surface plus webhook parse/verify.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from .._http import HttpCore
+from ..errors import SignatureError
+from ..events import WebhookEvent
 from ..models import Agent, Call
-from ._vapi_map import agent_to_vapi, call_request, vapi_to_agent, vapi_to_call
+from ..webhooks import verify_vapi
+from ._common import decode_webhook_body
+from ._vapi_map import agent_to_vapi, call_request, parse_webhook, vapi_to_agent, vapi_to_call
 
 
 class VapiProvider:
@@ -52,6 +57,16 @@ class VapiProvider:
     def list_calls(self) -> list[Call]:
         data = self._http.request("GET", "/call")
         return [vapi_to_call(item) for item in data]
+
+    def verify_signature(self, headers: Mapping[str, str], raw_body: bytes) -> bool:
+        if self._webhook_secret is None:
+            return True
+        return verify_vapi(headers, raw_body, self._webhook_secret)
+
+    def parse_webhook(self, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:
+        if self._webhook_secret is not None and not self.verify_signature(headers, raw_body):
+            raise SignatureError("vapi webhook signature verification failed")
+        return parse_webhook(decode_webhook_body(raw_body, "vapi"))
 
     def close(self) -> None:
         self._http.close()

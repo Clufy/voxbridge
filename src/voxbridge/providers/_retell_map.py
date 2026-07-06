@@ -12,7 +12,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..events import (
+    CallEnded,
+    CallStarted,
+    ErrorEvent,
+    TranscriptChunk,
+    WebhookEvent,
+)
 from ..models import Agent, Call
+from ._common import normalize_role
 
 
 def agent_to_llm(agent: Agent) -> dict[str, Any]:
@@ -92,3 +100,40 @@ def phone_call_request(
     out["to_number"] = to_number
     out["override_agent_id"] = agent_id
     return out
+
+
+def parse_webhook(payload: dict[str, Any]) -> WebhookEvent:
+    """Normalize a Retell webhook payload into a WebhookEvent.
+
+    Envelope is {"event": ..., "call": {...}}; the call id is at call.call_id.
+    """
+    event = payload.get("event")
+    # `or {}` so a JSON null call coalesces the same as an absent key.
+    call = payload.get("call") or {}
+    common: dict[str, Any] = {
+        "call_id": call.get("call_id"),
+        "provider": "retell",
+        "raw": payload,
+    }
+
+    if event == "call_started":
+        return CallStarted(**common)
+    if event in ("call_ended", "call_analyzed"):
+        # call_ended and call_analyzed both fire for one call; both map to
+        # CallEnded. Consumers dedupe on call_id (call_analyzed is the richer one).
+        return CallEnded(
+            transcript=call.get("transcript"),
+            ended_reason=call.get("disconnection_reason"),
+            **common,
+        )
+    if event == "transcript_updated":
+        # Retell sends the full cumulative transcript each time; the newest turn
+        # is the last transcript_object entry.
+        turns = call.get("transcript_object") or []
+        last = turns[-1] if turns else {}
+        return TranscriptChunk(
+            role=normalize_role(last.get("role")),
+            text=last.get("content") or "",
+            **common,
+        )
+    return ErrorEvent(message=f"unhandled retell event: {event}", **common)

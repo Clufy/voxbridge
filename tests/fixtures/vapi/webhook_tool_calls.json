@@ -1,0 +1,34 @@
+{
+  "message": {
+    "type": "tool-calls",
+    "call": {
+      "id": "call_sanitized000",
+      "orgId": "org_sanitized000"
+    },
+    "toolCallList": [
+      {
+        "id": "toolcall_sanitized000",
+        "name": "get_weather",
+        "arguments": {
+          "location": "San Francisco",
+          "unit": "celsius"
+        }
+      }
+    ],
+    "toolWithToolCallList": [
+      {
+        "type": "function",
+        "name": "get_weather",
+        "toolCall": {
+          "id": "toolcall_sanitized000",
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "arguments": "{\"location\": \"San Francisco\", \"unit\": \"celsius\"}"
+          }
+        }
+      }
+    ],
+    "timestamp": 1735689610000
+  }
+}
