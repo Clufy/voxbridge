@@ -47,15 +47,36 @@ def _model_provider(model: str) -> str:
     return "openai"
 
 
+def _vapi_tools(agent: Agent) -> list[dict[str, Any]]:
+    """Map Agent.tools to Vapi's function-tool shape (with optional server url)."""
+    tools: list[dict[str, Any]] = []
+    for tool in agent.tools:
+        entry: dict[str, Any] = {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.parameters,
+            },
+        }
+        if tool.endpoint_url is not None:
+            entry["server"] = {"url": tool.endpoint_url}
+        tools.append(entry)
+    return tools
+
+
 def agent_to_vapi(agent: Agent) -> dict[str, Any]:
     """Map a voxbridge Agent to Vapi's CreateAssistantDTO shape."""
+    model: dict[str, Any] = {
+        "provider": _model_provider(agent.model),
+        "model": agent.model,
+        "messages": [{"role": "system", "content": agent.system_prompt}],
+    }
+    if agent.tools:
+        model["tools"] = _vapi_tools(agent)
     out: dict[str, Any] = {
         "name": agent.name,
-        "model": {
-            "provider": _model_provider(agent.model),
-            "model": agent.model,
-            "messages": [{"role": "system", "content": agent.system_prompt}],
-        },
+        "model": model,
         "voice": _voice(agent.voice),
     }
     if agent.first_message is not None:

@@ -23,6 +23,22 @@ from ..models import Agent, Call
 from ._common import normalize_role
 
 
+def _retell_tools(agent: Agent) -> list[dict[str, Any]]:
+    """Map Agent.tools to Retell's general_tools (type "custom") shape."""
+    tools: list[dict[str, Any]] = []
+    for tool in agent.tools:
+        entry: dict[str, Any] = {
+            "type": "custom",
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": tool.parameters,
+        }
+        if tool.endpoint_url is not None:
+            entry["url"] = tool.endpoint_url
+        tools.append(entry)
+    return tools
+
+
 def agent_to_llm(agent: Agent) -> dict[str, Any]:
     """Map a voxbridge Agent to the body of Retell's CreateRetellLlmDTO."""
     out: dict[str, Any] = {
@@ -31,6 +47,8 @@ def agent_to_llm(agent: Agent) -> dict[str, Any]:
     }
     if agent.first_message is not None:
         out["begin_message"] = agent.first_message
+    if agent.tools:
+        out["general_tools"] = _retell_tools(agent)
     return out
 
 
