@@ -70,3 +70,42 @@ class VapiProvider:
 
     def close(self) -> None:
         self._http.close()
+
+    # -- async twins: same mapping helpers, only the HTTP call differs -----
+
+    async def acreate_agent(self, agent: Agent) -> Agent:
+        data = await self._http.arequest("POST", "/assistant", json=agent_to_vapi(agent))
+        return vapi_to_agent(data)
+
+    async def aupdate_agent(self, agent_id: str, agent: Agent) -> Agent:
+        data = await self._http.arequest(
+            "PATCH", f"/assistant/{agent_id}", json=agent_to_vapi(agent)
+        )
+        return vapi_to_agent(data)
+
+    async def aget_agent(self, agent_id: str) -> Agent:
+        data = await self._http.arequest("GET", f"/assistant/{agent_id}")
+        return vapi_to_agent(data)
+
+    async def adelete_agent(self, agent_id: str) -> None:
+        await self._http.arequest("DELETE", f"/assistant/{agent_id}")
+        return None
+
+    async def acreate_call(
+        self, agent_id: str, to_number: str, *, from_number: str | None = None
+    ) -> Call:
+        data = await self._http.arequest(
+            "POST", "/call", json=call_request(agent_id, to_number, from_number)
+        )
+        return vapi_to_call(data)
+
+    async def aget_call(self, call_id: str) -> Call:
+        data = await self._http.arequest("GET", f"/call/{call_id}")
+        return vapi_to_call(data)
+
+    async def alist_calls(self) -> list[Call]:
+        data = await self._http.arequest("GET", "/call")
+        return [vapi_to_call(item) for item in data]
+
+    async def aclose(self) -> None:
+        await self._http.aclose()

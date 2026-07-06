@@ -101,3 +101,52 @@ class RetellProvider:
 
     def close(self) -> None:
         self._http.close()
+
+    # -- async twins: same mapping helpers, only the HTTP call differs -----
+
+    async def acreate_agent(self, agent: Agent) -> Agent:
+        llm = await self._http.arequest(
+            "POST", "/create-retell-llm", json=agent_to_llm(agent)
+        )
+        data = await self._http.arequest(
+            "POST", "/create-agent", json=agent_to_retell(agent, llm["llm_id"])
+        )
+        return retell_to_agent(data, llm)
+
+    async def aupdate_agent(self, agent_id: str, agent: Agent) -> Agent:
+        data = await self._http.arequest(
+            "PATCH",
+            f"/update-agent/{agent_id}",
+            json={"agent_name": agent.name, "voice_id": agent.voice},
+        )
+        return retell_to_agent(data)
+
+    async def aget_agent(self, agent_id: str) -> Agent:
+        data = await self._http.arequest("GET", f"/get-agent/{agent_id}")
+        return retell_to_agent(data)
+
+    async def adelete_agent(self, agent_id: str) -> None:
+        await self._http.arequest("DELETE", f"/delete-agent/{agent_id}")
+        return None
+
+    async def acreate_call(
+        self, agent_id: str, to_number: str, *, from_number: str | None = None
+    ) -> Call:
+        data = await self._http.arequest(
+            "POST",
+            "/v2/create-phone-call",
+            json=phone_call_request(agent_id, to_number, from_number),
+        )
+        return retell_to_call(data)
+
+    async def aget_call(self, call_id: str) -> Call:
+        data = await self._http.arequest("GET", f"/v2/get-call/{call_id}")
+        return retell_to_call(data)
+
+    async def alist_calls(self) -> list[Call]:
+        data = await self._http.arequest("POST", "/v3/list-calls", json={})
+        items = data["calls"] if isinstance(data, dict) else data
+        return [retell_to_call(item) for item in items]
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
