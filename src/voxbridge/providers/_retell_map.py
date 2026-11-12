@@ -10,6 +10,7 @@ Retell splits an agent's prompt/greeting onto a separate Retell LLM object
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from ..events import (
@@ -51,16 +52,41 @@ def llm_id_of(agent_data: dict[str, Any]) -> str | None:
 
 
 def llm_update_body(agent: Agent, existing_llm: dict[str, Any]) -> dict[str, Any]:
-    """Body for updating a Retell LLM; unset fields are left out, built-in tools kept."""
+    """Body for updating a Retell LLM; unset fields are left out, built-in tools kept.
+
+    `model` is always sent; an LLM configured through `model_config` also gets
+    its `primary` set, other `model_config` keys kept.
+    """
     out: dict[str, Any] = {"general_prompt": agent.system_prompt, "model": agent.model}
+    model_config = existing_llm.get("model_config")
+    if isinstance(model_config, dict):
+        out["model_config"] = {**model_config, "primary": agent.model}
     if agent.first_message is not None:
         out["begin_message"] = agent.first_message
     if agent.tools:
-        kept = [
-            t for t in (existing_llm.get("general_tools") or []) if t.get("type") != "custom"
-        ]
-        out["general_tools"] = [*kept, *_retell_tools(agent)]
+        out["general_tools"] = _merge_retell_tools(
+            existing_llm.get("general_tools") or [], agent
+        )
     return out
+
+
+def _merge_retell_tools(existing: list[dict[str, Any]], agent: Agent) -> list[dict[str, Any]]:
+    """Non-custom tools kept; custom tools rebuilt in agent.tools order.
+
+    A custom tool matching an existing one by name keeps its provider-only
+    settings (headers, query_params, method, response_variables, speak_*,
+    timeout_ms...); existing custom tools absent from agent.tools are dropped.
+    """
+    kept: list[dict[str, Any]] = []
+    by_name: dict[str, dict[str, Any]] = {}
+    for entry in existing:
+        if entry.get("type") != "custom":
+            kept.append(entry)
+            continue
+        name = entry.get("name")
+        if isinstance(name, str):
+            by_name.setdefault(name, entry)
+    return kept + [_retell_tool(tool, by_name.get(tool.name)) for tool in agent.tools]
 
 
 def retell_call_items(data: Any) -> list[dict[str, Any]]:
@@ -76,20 +102,20 @@ def retell_tool_response(event: ToolCall, result: Any) -> Any:
     return result
 
 
+def _retell_tool(tool: Tool, existing: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Map one Tool to Retell's custom-tool shape, overlaid on `existing` if given."""
+    entry: dict[str, Any] = (
+        copy.deepcopy(existing) if existing is not None else {"type": "custom"}
+    )
+    entry.update(name=tool.name, description=tool.description, parameters=tool.parameters)
+    if tool.endpoint_url is not None:
+        entry["url"] = tool.endpoint_url
+    return entry
+
+
 def _retell_tools(agent: Agent) -> list[dict[str, Any]]:
     """Map Agent.tools to Retell's general_tools (type "custom") shape."""
-    tools: list[dict[str, Any]] = []
-    for tool in agent.tools:
-        entry: dict[str, Any] = {
-            "type": "custom",
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": tool.parameters,
-        }
-        if tool.endpoint_url is not None:
-            entry["url"] = tool.endpoint_url
-        tools.append(entry)
-    return tools
+    return [_retell_tool(tool) for tool in agent.tools]
 
 
 def agent_to_llm(agent: Agent) -> dict[str, Any]:

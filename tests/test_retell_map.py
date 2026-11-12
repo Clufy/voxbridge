@@ -240,3 +240,90 @@ def test_retell_call_items_v3_and_bare() -> None:
 def test_retell_call_items_non_dict_non_list_is_empty() -> None:
     assert retell_call_items(None) == []
     assert retell_call_items("x") == []
+
+
+# --- Update round trip keeps per-tool provider settings (final review #1) ----
+
+
+def _llm_with_tool() -> dict[str, object]:
+    return {
+        "model": "gpt-4.1",
+        "general_tools": [
+            {"type": "end_call", "name": "end_call"},
+            {
+                "type": "custom",
+                "name": "book",
+                "description": "old",
+                "parameters": {},
+                "url": "https://old.test/book",
+                "headers": {"X-Team": "a"},
+                "timeout_ms": 8000,
+                "speak_after_execution": True,
+            },
+            {"type": "custom", "name": "gone", "url": "https://old.test/gone"},
+        ],
+    }
+
+
+def test_llm_update_round_trip_keeps_tool_settings() -> None:
+    existing = _llm_with_tool()
+    agent = retell_to_agent(AGENT, existing)
+    agent = agent.model_copy(update={
+        "system_prompt": "new prompt",
+        "tools": [t for t in agent.tools if t.name == "book"],
+    })
+    out = llm_update_body(agent, existing)
+    assert out["general_tools"] == [
+        {"type": "end_call", "name": "end_call"},
+        {
+            "type": "custom",
+            "name": "book",
+            "description": "old",
+            "parameters": {},
+            "url": "https://old.test/book",
+            "headers": {"X-Team": "a"},
+            "timeout_ms": 8000,
+            "speak_after_execution": True,
+        },
+    ]
+
+
+def test_llm_update_overlays_only_voxbridge_tool_fields_and_appends_new() -> None:
+    existing = _llm_with_tool()
+    agent = Agent(name="S", system_prompt="p", model="gpt-4.1", voice="v", tools=[
+        Tool(name="book", description="new", parameters={"type": "object"},
+             endpoint_url="https://new.test/book"),
+        Tool(name="fresh", description="d", parameters={}, endpoint_url="https://new.test/f"),
+    ])
+    tools = llm_update_body(agent, existing)["general_tools"]
+    assert tools[1] == {
+        "type": "custom",
+        "name": "book",
+        "description": "new",
+        "parameters": {"type": "object"},
+        "url": "https://new.test/book",
+        "headers": {"X-Team": "a"},
+        "timeout_ms": 8000,
+        "speak_after_execution": True,
+    }
+    assert tools[2] == {
+        "type": "custom", "name": "fresh", "description": "d", "parameters": {},
+        "url": "https://new.test/f",
+    }
+    assert [t["name"] for t in tools] == ["end_call", "book", "fresh"]
+    general_tools = existing["general_tools"]
+    assert isinstance(general_tools, list) and general_tools[1]["description"] == "old"
+
+
+# --- Model update when the LLM uses model_config (final review #6) ---------
+
+
+def test_llm_update_sets_model_config_primary_when_present() -> None:
+    a = Agent(name="S", system_prompt="p", model="gpt-4.1-mini", voice="v")
+    existing = {"model_config": {"primary": "gpt-4.1", "temperature": 0.3}}
+    out = llm_update_body(a, existing)
+    assert out["model"] == "gpt-4.1-mini"
+    assert out["model_config"] == {"primary": "gpt-4.1-mini", "temperature": 0.3}
+    assert existing["model_config"]["primary"] == "gpt-4.1"
+    assert "model_config" not in llm_update_body(a, {"model": "gpt-4.1"})
+    assert "model_config" not in llm_update_body(a, {"model_config": None})

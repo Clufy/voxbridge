@@ -238,7 +238,8 @@ def test_merge_update_keeps_unmodelled_model_settings() -> None:
     assert body["model"]["messages"][0] == {"role": "system", "content": "new"}
     assert body["model"]["messages"][1]["role"] == "assistant"
     assert body["model"]["tools"] == [{"type": "transferCall"}]
-    assert body["voice"] == {"provider": "openai", "voiceId": "alloy", "stability": 0.5}
+    # Voice provider changed (11labs -> openai): fresh block, old TTS settings dropped.
+    assert body["voice"] == {"provider": "openai", "voiceId": "alloy"}
     assert "firstMessage" not in body
     assert existing["model"]["messages"][0]["content"] == "old"
 
@@ -294,3 +295,118 @@ def test_vapi_to_agent_null_tool_description_becomes_empty() -> None:
         {"type": "function", "function": {"name": "f", "description": None, "parameters": {}}}
     ]
     assert vapi_to_agent(data).tools[0].description == ""
+
+
+# --- Update round trip keeps per-tool provider settings (final review #1) ----
+
+
+def _existing_with_tool() -> dict[str, Any]:
+    existing = _existing()
+    existing["model"]["tools"] = [
+        {"type": "transferCall"},
+        {
+            "type": "function",
+            "async": True,
+            "function": {"name": "book", "description": "old", "parameters": {}},
+            "server": {
+                "url": "https://old.test/book",
+                "secret": "tool-secret",
+                "headers": {"X-Team": "a"},
+            },
+        },
+        {"type": "function", "function": {"name": "gone"}},
+    ]
+    return existing
+
+
+def test_merge_update_round_trip_keeps_tool_server_settings() -> None:
+    existing = _existing_with_tool()
+    agent = vapi_to_agent(existing).model_copy(
+        update={"name": "N", "system_prompt": "new prompt", "voice": "11labs:old"}
+    )
+    agent = agent.model_copy(update={"tools": [t for t in agent.tools if t.name == "book"]})
+    tools = merge_vapi_update(existing, agent)["model"]["tools"]
+    assert tools == [
+        {"type": "transferCall"},
+        {
+            "type": "function",
+            "async": True,
+            "function": {"name": "book", "description": "old", "parameters": {}},
+            "server": {
+                "url": "https://old.test/book",
+                "secret": "tool-secret",
+                "headers": {"X-Team": "a"},
+            },
+        },
+    ]
+    assert existing["model"]["tools"][1]["server"]["secret"] == "tool-secret"
+
+
+def test_merge_update_overlays_only_voxbridge_tool_fields() -> None:
+    from voxbridge.models import Tool
+
+    agent = Agent(name="N", system_prompt="p", model="gpt-4o", voice="11labs:old", tools=[
+        Tool(name="book", description="new", parameters={"type": "object"},
+             endpoint_url="https://new.test/book"),
+        Tool(name="fresh", description="d", parameters={}),
+    ])
+    body = merge_vapi_update(_existing_with_tool(), agent)
+    tools = body["model"]["tools"]
+    assert tools[0] == {"type": "transferCall"}
+    assert tools[1] == {
+        "type": "function",
+        "async": True,
+        "function": {"name": "book", "description": "new", "parameters": {"type": "object"}},
+        "server": {
+            "url": "https://new.test/book",
+            "secret": "tool-secret",
+            "headers": {"X-Team": "a"},
+        },
+    }
+    assert tools[2] == {
+        "type": "function",
+        "function": {"name": "fresh", "description": "d", "parameters": {}},
+    }
+    assert [t.get("function", {}).get("name") for t in tools] == [None, "book", "fresh"]
+
+
+def test_merge_update_tool_without_endpoint_drops_only_server_url() -> None:
+    from voxbridge.models import Tool
+
+    agent = Agent(name="N", system_prompt="p", model="gpt-4o", voice="11labs:old",
+                  tools=[Tool(name="book", description="d", parameters={})])
+    book = merge_vapi_update(_existing_with_tool(), agent)["model"]["tools"][1]
+    assert book["server"] == {"secret": "tool-secret", "headers": {"X-Team": "a"}}
+    existing = _existing_with_tool()
+    existing["model"]["tools"][1]["server"] = {"url": "https://old.test/book"}
+    assert "server" not in merge_vapi_update(existing, agent)["model"]["tools"][1]
+
+
+# --- Model provider kept unless the model changed (final review #2) --------
+
+
+def test_merge_update_keeps_provider_for_same_model() -> None:
+    existing = {"model": {"provider": "groq", "model": "llama-3.1-70b"}}
+    same = Agent(name="N", system_prompt="p", model="llama-3.1-70b", voice="11labs:x")
+    assert merge_vapi_update(existing, same)["model"]["provider"] == "groq"
+    changed = same.model_copy(update={"model": "gpt-4o"})
+    assert merge_vapi_update(existing, changed)["model"]["provider"] == "openai"
+    no_provider = {"model": {"model": "llama-3.1-70b"}}
+    assert merge_vapi_update(no_provider, same)["model"]["provider"] == "openai"
+
+
+# --- Voice block replaced when the voice provider changes (final review #12) -
+
+
+def test_merge_update_voice_same_provider_keeps_settings() -> None:
+    agent = Agent(name="N", system_prompt="p", model="gpt-4o", voice="elevenlabs:new")
+    assert merge_vapi_update(_existing(), agent)["voice"] == {
+        "provider": "11labs", "voiceId": "new", "stability": 0.5,
+    }
+
+
+def test_merge_update_voice_provider_change_starts_fresh() -> None:
+    agent = Agent(name="N", system_prompt="p", model="gpt-4o", voice="openai:alloy")
+    assert merge_vapi_update(_existing(), agent)["voice"] == {
+        "provider": "openai", "voiceId": "alloy",
+    }

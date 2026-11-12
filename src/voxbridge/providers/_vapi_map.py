@@ -50,22 +50,55 @@ def _model_provider(model: str) -> str:
     return "openai"
 
 
+def _vapi_tool(tool: Tool, existing: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Map one Tool to Vapi's function-tool shape.
+
+    With `existing` (the matching tool already on the assistant), only the
+    fields voxbridge models are overlaid onto a copy of it, so per-tool
+    settings such as ``async``, ``server.secret`` and ``server.headers`` survive.
+    """
+    entry: dict[str, Any] = (
+        copy.deepcopy(existing) if existing is not None else {"type": "function"}
+    )
+    entry["function"] = {
+        **(entry.get("function") or {}),
+        "name": tool.name,
+        "description": tool.description,
+        "parameters": tool.parameters,
+    }
+    server = dict(entry.get("server") or {})
+    if tool.endpoint_url is not None:
+        server["url"] = tool.endpoint_url
+    else:
+        server.pop("url", None)
+    if server:
+        entry["server"] = server
+    else:
+        entry.pop("server", None)
+    return entry
+
+
 def _vapi_tools(agent: Agent) -> list[dict[str, Any]]:
     """Map Agent.tools to Vapi's function-tool shape (with optional server url)."""
-    tools: list[dict[str, Any]] = []
-    for tool in agent.tools:
-        entry: dict[str, Any] = {
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.parameters,
-            },
-        }
-        if tool.endpoint_url is not None:
-            entry["server"] = {"url": tool.endpoint_url}
-        tools.append(entry)
-    return tools
+    return [_vapi_tool(tool) for tool in agent.tools]
+
+
+def _merge_vapi_tools(existing: list[dict[str, Any]], agent: Agent) -> list[dict[str, Any]]:
+    """Non-function tools kept; function tools rebuilt in agent.tools order.
+
+    A function tool matching an existing one by name keeps its provider-only
+    settings; existing function tools absent from agent.tools are dropped.
+    """
+    kept: list[dict[str, Any]] = []
+    by_name: dict[str, dict[str, Any]] = {}
+    for entry in existing:
+        if entry.get("type") != "function":
+            kept.append(entry)
+            continue
+        name = (entry.get("function") or {}).get("name")
+        if isinstance(name, str):
+            by_name.setdefault(name, entry)
+    return kept + [_vapi_tool(tool, by_name.get(tool.name)) for tool in agent.tools]
 
 
 def agent_to_vapi(agent: Agent) -> dict[str, Any]:
@@ -90,11 +123,15 @@ def agent_to_vapi(agent: Agent) -> dict[str, Any]:
 def merge_vapi_update(existing: dict[str, Any], agent: Agent) -> dict[str, Any]:
     """Build a PATCH body that overlays `agent` on the `existing` assistant.
 
-    Keeps model/voice settings voxbridge does not model (temperature, stability,
-    non-function tools...). Does not mutate `existing`.
+    Keeps model/voice settings voxbridge does not model (temperature, non-function
+    tools, per-tool server settings; voice settings while the voice provider is
+    unchanged). Does not mutate `existing`.
     """
     model = copy.deepcopy(existing.get("model") or {})
-    model["provider"] = _model_provider(agent.model)
+    # A provider set on the assistant (e.g. "groq") is kept while the model is
+    # unchanged; prefix inference only applies to a new model.
+    if not (model.get("provider") and model.get("model") == agent.model):
+        model["provider"] = _model_provider(agent.model)
     model["model"] = agent.model
     messages = model.get("messages") or []
     system = {"role": "system", "content": agent.system_prompt}
@@ -106,11 +143,14 @@ def merge_vapi_update(existing: dict[str, Any], agent: Agent) -> dict[str, Any]:
         messages.insert(0, system)
     model["messages"] = messages
     if agent.tools:
-        kept = [t for t in model.get("tools") or [] if t.get("type") != "function"]
-        model["tools"] = kept + _vapi_tools(agent)
+        model["tools"] = _merge_vapi_tools(model.get("tools") or [], agent)
 
-    voice = copy.deepcopy(existing.get("voice") or {})
-    voice.update(_voice(agent.voice))
+    # Other voice settings belong to the TTS provider; keep them only while it
+    # stays the same.
+    voice = _voice(agent.voice)
+    existing_voice = existing.get("voice") or {}
+    if existing_voice.get("provider") == voice["provider"]:
+        voice = {**copy.deepcopy(existing_voice), **voice}
 
     out: dict[str, Any] = {"name": agent.name, "model": model, "voice": voice}
     if agent.first_message is not None:
