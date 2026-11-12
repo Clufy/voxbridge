@@ -114,6 +114,10 @@ Errors: AuthError | RateLimited | ProviderError | NotSupported
 - **M5 — Ship**: mkdocs site, ≥90% coverage gate, provider-comparison table in
   README, semver `0.1.0`, PyPI publish via OIDC, README with badges + quickstart.
 
+- **M6 — Release hardening** (added 2026-11-12): parity/safety fixes found in the
+  post-M5 audit plus ease-of-use extras, before the first PyPI upload. See
+  [`2026-11-12-voxbridge-release-hardening-design.md`](2026-11-12-voxbridge-release-hardening-design.md).
+
 ## Acceptance criteria
 
 - Same application code switches Vapi ↔ Retell by changing only `provider`.

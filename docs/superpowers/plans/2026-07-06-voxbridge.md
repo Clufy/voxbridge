@@ -900,6 +900,9 @@ def test_async_surface_mirrors_sync():
 
 **M5 checkpoint:** coverage ≥90%, mypy/ruff clean, docs build, capability table present. Tag `v0.1.0` only after the user confirms the PyPI name is free.
 
+> **Superseded for release:** do not tag after M5. The M6 release-hardening plan
+> (`docs/superpowers/plans/2026-11-12-voxbridge-release-hardening.md`) must land first.
+
 ---
 
 ## Self-Review
