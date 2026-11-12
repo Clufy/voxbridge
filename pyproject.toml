@@ -46,6 +46,9 @@ exclude = [".superpowers", ".claude", "docs/superpowers", ".github", "uv.lock"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 addopts = "--cov=voxbridge --cov-report=term-missing"
+# Third-party: starlette's TestClient (used only by tests/test_examples.py) warns
+# about its own httpx dependency. Not actionable here.
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]
 
 [tool.ruff]
 line-length = 100
