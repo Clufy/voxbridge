@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from voxbridge.errors import SignatureError, VoxBridgeError
+from voxbridge.errors import ProviderError, SignatureError, VoxBridgeError
 from voxbridge.events import CallEnded, CallStarted, ErrorEvent, ToolCall, TranscriptChunk
 from voxbridge.providers._retell_map import parse_webhook as parse_retell
 from voxbridge.providers._retell_map import retell_tool_response
@@ -312,3 +312,64 @@ def test_custom_function_null_args_and_call() -> None:
 
 def test_payload_with_event_key_is_not_custom_function() -> None:
     assert isinstance(parse_retell({"event": "nope", "name": "x", "args": {}}), ErrorEvent)
+
+
+# --- Non-ASCII signature headers are SignatureError (final review #3) ------
+
+
+def test_retell_non_ascii_signature_raises_signature_error() -> None:
+    p = RetellProvider("k", webhook_secret=SECRET)
+    with pytest.raises(SignatureError):
+        p.parse_webhook({"x-retell-signature": "v=1,d=é"}, b"{}")
+
+
+def test_vapi_non_ascii_secret_header_raises_signature_error() -> None:
+    p = VapiProvider("k", webhook_secret=SECRET)
+    with pytest.raises(SignatureError):
+        p.parse_webhook({"X-Vapi-Secret": "é"}, b"{}")
+
+
+# --- Malformed payloads always surface as ProviderError (final review #4) ---
+
+
+_MALFORMED_VAPI: list[object] = [
+    {"message": "x"},
+    {"message": {"type": "status-update", "call": "x"}},
+    {"message": {"type": "tool-calls", "toolCallList": ["x"]}},
+    {"message": {"type": "tool-calls", "toolCallList": {"id": "x"}}},
+    {"message": {"type": "tool-calls", "toolCallList": [{"function": "x"}]}},
+    {"message": {"type": "transcript", "transcript": 5}},
+]
+_MALFORMED_RETELL: list[object] = [
+    {"event": "call_ended", "call": "x"},
+    {"event": "transcript_updated", "call": {"transcript_object": "x"}},
+    {"name": 1, "args": {}},
+    {"name": "x", "args": "y"},
+]
+
+
+def _parse_signed(provider: str, body: bytes) -> object:
+    if provider == "vapi":
+        return VapiProvider("k", webhook_secret=SECRET).parse_webhook(
+            {"X-Vapi-Secret": SECRET}, body
+        )
+    headers = _sign_retell(body, SECRET, str(int(time.time() * 1000)))
+    return RetellProvider("k", webhook_secret=SECRET).parse_webhook(headers, body)
+
+
+@pytest.mark.parametrize("provider", ["vapi", "retell"])
+def test_non_utf8_body_raises_provider_error(provider: str) -> None:
+    with pytest.raises(ProviderError) as exc:
+        _parse_signed(provider, b'{"a": "\xff"}')
+    assert exc.value.provider == provider
+
+
+@pytest.mark.parametrize(
+    ("provider", "payload"),
+    [("vapi", p) for p in _MALFORMED_VAPI] + [("retell", p) for p in _MALFORMED_RETELL],
+)
+def test_malformed_payload_raises_provider_error(provider: str, payload: object) -> None:
+    with pytest.raises(ProviderError, match=f"malformed {provider} webhook payload") as exc:
+        _parse_signed(provider, json.dumps(payload).encode())
+    assert exc.value.provider == provider
+    assert exc.value.__cause__ is not None

@@ -111,5 +111,5 @@ of `client.tool_response(event, result)` back as the JSON body with status 200;
   default. voxbridge documents this but does not enforce it.
 - **Vapi HMAC credentials** are not supported; use the shared secret or Bearer
   form.
-- Malformed bodies (not JSON, or not a JSON object) raise `ProviderError`, never a
-  bare decode error.
+- Malformed bodies (not UTF-8 JSON, not a JSON object, or fields of the wrong
+  type) raise `ProviderError`, never a bare decode or attribute error.

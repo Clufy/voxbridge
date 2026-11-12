@@ -14,7 +14,7 @@ from ..errors import ProviderError, SignatureError
 from ..events import ToolCall, WebhookEvent
 from ..models import Agent, Call
 from ..webhooks import verify_vapi
-from ._common import decode_webhook_body
+from ._common import decode_webhook_body, map_webhook
 from ._vapi_map import (
     agent_to_vapi,
     call_request,
@@ -118,10 +118,11 @@ class VapiProvider:
 
         Raises:
             SignatureError: If a secret is configured and verification fails.
+            ProviderError: If the body is malformed.
         """
         if self._webhook_secret is not None and not self.verify_signature(headers, raw_body):
             raise SignatureError("vapi webhook signature verification failed")
-        return parse_webhook(decode_webhook_body(raw_body, "vapi"))
+        return map_webhook(parse_webhook, decode_webhook_body(raw_body, "vapi"), "vapi")
 
     def tool_response(self, event: ToolCall, result: Any) -> dict[str, Any]:
         """Build the response body this provider expects for a tool call."""

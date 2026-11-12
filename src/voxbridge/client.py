@@ -191,6 +191,8 @@ class VoiceClient:
 
         Raises:
             SignatureError: If verification fails.
+            ProviderError: If the body is not JSON or not a webhook of the
+                expected shape.
         """
         return self._provider.parse_webhook(headers, raw_body)
 

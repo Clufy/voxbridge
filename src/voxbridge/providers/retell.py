@@ -16,7 +16,7 @@ from ..errors import NotSupported, SignatureError, VoxBridgeError
 from ..events import ToolCall, WebhookEvent
 from ..models import Agent, Call
 from ..webhooks import verify_retell
-from ._common import decode_webhook_body
+from ._common import decode_webhook_body, map_webhook
 from ._retell_map import (
     agent_to_llm,
     agent_to_retell,
@@ -157,10 +157,11 @@ class RetellProvider:
 
         Raises:
             SignatureError: If verification fails or the signature is too old.
+            ProviderError: If the body is malformed.
         """
         if not self.verify_signature(headers, raw_body):
             raise SignatureError("retell webhook signature verification failed")
-        return parse_webhook(decode_webhook_body(raw_body, "retell"))
+        return map_webhook(parse_webhook, decode_webhook_body(raw_body, "retell"), "retell")
 
     def tool_response(self, event: ToolCall, result: Any) -> Any:
         """Build the response body this provider expects for a tool call."""
