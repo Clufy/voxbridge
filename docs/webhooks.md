@@ -14,7 +14,7 @@ exact bytes the provider sent, so re-serialized JSON will fail verification.
 without parsing.
 
 A runnable FastAPI server that handles both webhooks and tool calls is in
-[`examples/fastapi_server.py`](https://github.com/Aquib/voxbridge/blob/main/examples/fastapi_server.py).
+[`examples/fastapi_server.py`](https://github.com/Clufy/voxbridge/blob/main/examples/fastapi_server.py).
 
 ## Verification
 

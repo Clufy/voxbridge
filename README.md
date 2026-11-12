@@ -1,10 +1,10 @@
 # voxbridge
 
-[![CI](https://github.com/Aquib/voxbridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Aquib/voxbridge/actions/workflows/ci.yml)
+[![CI](https://github.com/Clufy/voxbridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Clufy/voxbridge/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/voxbridge.svg)](https://pypi.org/project/voxbridge/)
 [![Python](https://img.shields.io/pypi/pyversions/voxbridge.svg)](https://pypi.org/project/voxbridge/)
-[![Docs](https://img.shields.io/badge/docs-aquib.github.io%2Fvoxbridge-blue.svg)](https://aquib.github.io/voxbridge/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Aquib/voxbridge/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-clufy.github.io%2Fvoxbridge-blue.svg)](https://clufy.github.io/voxbridge/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Clufy/voxbridge/blob/main/LICENSE)
 
 voxbridge is a Python SDK that puts one typed `VoiceClient` over the
 [Vapi](https://vapi.ai) and [Retell](https://retellai.com) voice-agent
@@ -65,7 +65,7 @@ client = VoiceClient(provider="retell", api_key="key_...", webhook_secret="key_.
 Every agent/call method has an `a`-prefixed async twin
 (`await client.acreate_call(...)`); `parse_webhook`, `verify_signature` and
 `tool_response` are sync.
-See the [quickstart guide](https://aquib.github.io/voxbridge/quickstart/) for
+See the [quickstart guide](https://clufy.github.io/voxbridge/quickstart/) for
 agents with tools, async usage and more.
 
 ## Configuration
@@ -80,7 +80,7 @@ agents with tools, async usage and more.
 
 Keyword arguments to `from_env(**overrides)` win over environment values. Empty
 variables count as unset. voxbridge does not load `.env` files itself; see the
-[configuration guide](https://aquib.github.io/voxbridge/configuration/).
+[configuration guide](https://clufy.github.io/voxbridge/configuration/).
 
 ## Webhooks and tools
 
@@ -113,8 +113,8 @@ async def tools(request: Request) -> JSONResponse:
 > Retell is verified by default with your API key.
 
 A fuller, runnable server (webhooks and tools) is in
-[`examples/`](https://github.com/Aquib/voxbridge/tree/main/examples); the
-[webhooks guide](https://aquib.github.io/voxbridge/webhooks/) covers verification,
+[`examples/`](https://github.com/Clufy/voxbridge/tree/main/examples); the
+[webhooks guide](https://clufy.github.io/voxbridge/webhooks/) covers verification,
 event mapping and per-provider limits.
 
 ## Error handling
@@ -160,15 +160,15 @@ except RateLimited as exc:
 
 Voice ids are always written `"<tts-provider>:<voiceId>"` (`elevenlabs` is
 normalized to `11labs`), but the voice catalogs differ between providers. See
-[providers](https://aquib.github.io/voxbridge/providers/) for the full matrix
+[providers](https://clufy.github.io/voxbridge/providers/) for the full matrix
 and known differences.
 
 ## More
 
-- [Documentation](https://aquib.github.io/voxbridge/)
-- [Changelog](https://github.com/Aquib/voxbridge/blob/main/CHANGELOG.md)
-- [Contributing](https://github.com/Aquib/voxbridge/blob/main/CONTRIBUTING.md)
+- [Documentation](https://clufy.github.io/voxbridge/)
+- [Changelog](https://github.com/Clufy/voxbridge/blob/main/CHANGELOG.md)
+- [Contributing](https://github.com/Clufy/voxbridge/blob/main/CONTRIBUTING.md)
 
 ## License
 
-[MIT](https://github.com/Aquib/voxbridge/blob/main/LICENSE)
+[MIT](https://github.com/Clufy/voxbridge/blob/main/LICENSE)

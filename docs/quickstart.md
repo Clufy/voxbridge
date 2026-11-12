@@ -95,7 +95,7 @@ A failed verification raises `SignatureError`; a malformed body raises
 `ProviderError`. Verification rules differ per provider (Vapi accepts unsigned
 requests unless you set a secret), so read [Webhooks & tools](webhooks.md) before
 going to production. A runnable FastAPI server is in
-[`examples/fastapi_server.py`](https://github.com/Aquib/voxbridge/blob/main/examples/fastapi_server.py).
+[`examples/fastapi_server.py`](https://github.com/Clufy/voxbridge/blob/main/examples/fastapi_server.py).
 
 ## Async
 

@@ -51,11 +51,11 @@ Use [conventional commits](https://www.conventionalcommits.org/) (`feat:`, `fix:
 
 One-time setup:
 
-1. Create the GitHub repository `Aquib/voxbridge` and push `main`.
+1. Create the GitHub repository `Clufy/voxbridge` and push `main`.
 2. Enable GitHub Pages for the repository, serving from the `gh-pages` branch
    (the docs workflow publishes to it).
 3. Confirm the name `voxbridge` is free on PyPI.
-4. On PyPI, add a Trusted Publisher: owner `Aquib`, repository `voxbridge`,
+4. On PyPI, add a Trusted Publisher: owner `Clufy`, repository `voxbridge`,
    workflow `publish.yml`, environment `pypi`.
 5. On GitHub, create the environment `pypi` (Settings, Environments).
 
