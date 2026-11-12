@@ -78,11 +78,6 @@ def _vapi_tool(tool: Tool, existing: dict[str, Any] | None = None) -> dict[str, 
     return entry
 
 
-def _vapi_tools(agent: Agent) -> list[dict[str, Any]]:
-    """Map Agent.tools to Vapi's function-tool shape (with optional server url)."""
-    return [_vapi_tool(tool) for tool in agent.tools]
-
-
 def _merge_vapi_tools(existing: list[dict[str, Any]], agent: Agent) -> list[dict[str, Any]]:
     """Non-function tools kept; function tools rebuilt in agent.tools order.
 
@@ -109,7 +104,7 @@ def agent_to_vapi(agent: Agent) -> dict[str, Any]:
         "messages": [{"role": "system", "content": agent.system_prompt}],
     }
     if agent.tools:
-        model["tools"] = _vapi_tools(agent)
+        model["tools"] = [_vapi_tool(tool) for tool in agent.tools]
     out: dict[str, Any] = {
         "name": agent.name,
         "model": model,

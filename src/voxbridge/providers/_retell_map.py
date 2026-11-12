@@ -97,11 +97,6 @@ def retell_call_items(data: Any) -> list[dict[str, Any]]:
     return list(data) if isinstance(data, list) else []
 
 
-def retell_tool_response(event: ToolCall, result: Any) -> Any:
-    """Retell custom functions take the result as the HTTP response body."""
-    return result
-
-
 def _retell_tool(tool: Tool, existing: dict[str, Any] | None = None) -> dict[str, Any]:
     """Map one Tool to Retell's custom-tool shape, overlaid on `existing` if given."""
     entry: dict[str, Any] = (
@@ -113,11 +108,6 @@ def _retell_tool(tool: Tool, existing: dict[str, Any] | None = None) -> dict[str
     return entry
 
 
-def _retell_tools(agent: Agent) -> list[dict[str, Any]]:
-    """Map Agent.tools to Retell's general_tools (type "custom") shape."""
-    return [_retell_tool(tool) for tool in agent.tools]
-
-
 def agent_to_llm(agent: Agent) -> dict[str, Any]:
     """Map a voxbridge Agent to the body of Retell's CreateRetellLlmDTO."""
     out: dict[str, Any] = {
@@ -127,7 +117,7 @@ def agent_to_llm(agent: Agent) -> dict[str, Any]:
     if agent.first_message is not None:
         out["begin_message"] = agent.first_message
     if agent.tools:
-        out["general_tools"] = _retell_tools(agent)
+        out["general_tools"] = [_retell_tool(tool) for tool in agent.tools]
     return out
 
 

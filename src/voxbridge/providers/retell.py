@@ -27,7 +27,6 @@ from ._retell_map import (
     retell_call_items,
     retell_to_agent,
     retell_to_call,
-    retell_tool_response,
     voice_to_retell,
 )
 
@@ -181,8 +180,11 @@ class RetellProvider:
         return map_webhook(parse_webhook, decode_webhook_body(raw_body, "retell"), "retell")
 
     def tool_response(self, event: ToolCall, result: Any) -> Any:
-        """Build the response body this provider expects for a tool call."""
-        return retell_tool_response(event, result)
+        """Build the response body this provider expects for a tool call.
+
+        Retell custom functions take the result itself as the HTTP response body.
+        """
+        return result
 
     def close(self) -> None:
         """Close the underlying HTTP client."""

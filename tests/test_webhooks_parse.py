@@ -9,7 +9,6 @@ import pytest
 from voxbridge.errors import ProviderError, SignatureError, VoxBridgeError
 from voxbridge.events import CallEnded, CallStarted, ErrorEvent, ToolCall, TranscriptChunk
 from voxbridge.providers._retell_map import parse_webhook as parse_retell
-from voxbridge.providers._retell_map import retell_tool_response
 from voxbridge.providers._vapi_map import parse_webhook as parse_vapi
 from voxbridge.providers.retell import RetellProvider
 from voxbridge.providers.vapi import VapiProvider
@@ -301,7 +300,7 @@ def test_custom_function_parses_to_tool_call() -> None:
     assert isinstance(ev, ToolCall) and ev.name == "book_appointment"
     assert ev.arguments == {"day": "monday"} and ev.call_id == "call_sanitized000"
     assert ev.provider == "retell" and ev.tool_call_id is None and ev.raw == payload
-    assert retell_tool_response(ev, {"ok": True}) == {"ok": True}
+    assert RetellProvider("k").tool_response(ev, {"ok": True}) == {"ok": True}
 
 
 def test_custom_function_null_args_and_call() -> None:
