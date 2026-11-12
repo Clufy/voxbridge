@@ -283,3 +283,9 @@ def test_max_age_none_disables_replay_check() -> None:
 def test_tool_response_returns_result_as_body() -> None:
     event = ToolCall(call_id="c", provider="retell", name="n")
     assert RetellProvider("k").tool_response(event, {"ok": True}) == {"ok": True}
+
+
+def test_retell_timeout_forwarded() -> None:
+    p = RetellProvider("k", timeout=5)
+    assert p._http._client().timeout == httpx.Timeout(5)
+    p.close()

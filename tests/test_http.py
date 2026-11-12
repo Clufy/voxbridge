@@ -257,3 +257,29 @@ async def test_async_idempotent_flag_allows_post_retry_on_500() -> None:
     await core.arequest("POST", "/list", json={}, idempotent=True)
     assert route.call_count == 2
     await core.aclose()
+
+
+@respx.mock
+def test_post_not_retried_on_read_error() -> None:
+    route = respx.post(f"{BASE}/call").mock(side_effect=httpx.ReadError("boom"))
+    with pytest.raises(ProviderError, match="connection error"):
+        HttpCore(BASE, "k", "vapi").request("POST", "/call", json={})
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_get_retried_on_read_error() -> None:
+    route = respx.get(f"{BASE}/x").mock(
+        side_effect=[httpx.ReadError("boom"), httpx.Response(200, json={"ok": 1})])
+    assert HttpCore(BASE, "k", "vapi").request("GET", "/x") == {"ok": 1}
+    assert route.call_count == 2
+
+
+@respx.mock
+async def test_async_post_not_retried_on_remote_protocol_error() -> None:
+    route = respx.post(f"{BASE}/call").mock(side_effect=httpx.RemoteProtocolError("bad"))
+    core = HttpCore(BASE, "k", "vapi")
+    with pytest.raises(ProviderError, match="connection error"):
+        await core.arequest("POST", "/call", json={})
+    assert route.call_count == 1
+    await core.aclose()

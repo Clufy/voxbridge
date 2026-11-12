@@ -55,7 +55,7 @@ def _should_retry(outcome: httpx.Response | Exception, idempotent: bool) -> floa
         return None
     if isinstance(outcome, (httpx.ConnectError, httpx.ConnectTimeout)):
         return _DEFAULT_BACKOFF
-    if isinstance(outcome, httpx.TimeoutException) and idempotent:
+    if isinstance(outcome, httpx.TransportError) and idempotent:
         return _DEFAULT_BACKOFF
     return None
 
@@ -116,7 +116,7 @@ class HttpCore:
             last = attempt == _MAX_ATTEMPTS
             try:
                 resp = self._client().request(method, path, json=json, params=params)
-            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            except httpx.TransportError as exc:
                 delay = _should_retry(exc, safe)
                 if delay is None or last:
                     raise self._conn_error(exc) from exc
@@ -139,7 +139,7 @@ class HttpCore:
             last = attempt == _MAX_ATTEMPTS
             try:
                 resp = await self._aclient().request(method, path, json=json, params=params)
-            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            except httpx.TransportError as exc:
                 delay = _should_retry(exc, safe)
                 if delay is None or last:
                     raise self._conn_error(exc) from exc

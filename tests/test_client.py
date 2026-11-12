@@ -7,7 +7,11 @@ import respx
 
 import voxbridge
 from voxbridge.client import VoiceClient
+from voxbridge.errors import NotSupported
+from voxbridge.events import ToolCall
 from voxbridge.models import Agent
+from voxbridge.providers.retell import RetellProvider
+from voxbridge.providers.vapi import VapiProvider
 
 FX = pathlib.Path(__file__).parent / "fixtures" / "vapi"
 ASSISTANT = json.loads((FX / "assistant.json").read_text())
@@ -96,7 +100,7 @@ def test_all_delegations_forward_to_provider() -> None:
     c.get_call("c1")
     m.get_call.assert_called_once_with("c1")
     c.list_calls()
-    m.list_calls.assert_called_once_with()
+    m.list_calls.assert_called_once_with(limit=None)
     c.parse_webhook({"h": "v"}, b"{}")
     m.parse_webhook.assert_called_once_with({"h": "v"}, b"{}")
     c.verify_signature({"h": "v"}, b"{}")
@@ -124,4 +128,117 @@ async def test_all_async_delegations_forward_to_provider() -> None:
     await c.aget_call("c1")
     m.aget_call.assert_awaited_once_with("c1")
     await c.alist_calls()
-    m.alist_calls.assert_awaited_once_with()
+    m.alist_calls.assert_awaited_once_with(limit=None)
+
+
+def test_from_env_reads_provider_key_and_secret() -> None:
+    c = VoiceClient.from_env(
+        environ={"VOICE_PROVIDER": "vapi", "VAPI_API_KEY": "k", "VAPI_WEBHOOK_SECRET": "s"}
+    )
+    assert isinstance(c._provider, VapiProvider) and c._provider._webhook_secret == "s"
+
+
+def test_from_env_missing_key_names_variable() -> None:
+    with pytest.raises(ValueError, match="RETELL_API_KEY"):
+        VoiceClient.from_env("retell", environ={})
+
+
+def test_from_env_empty_key_counts_as_unset() -> None:
+    with pytest.raises(ValueError, match="VAPI_API_KEY"):
+        VoiceClient.from_env("vapi", environ={"VAPI_API_KEY": ""})
+
+
+def test_from_env_missing_provider() -> None:
+    with pytest.raises(ValueError, match="VOICE_PROVIDER"):
+        VoiceClient.from_env(environ={})
+
+
+def test_from_env_reads_process_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VOICE_PROVIDER", "retell")
+    monkeypatch.setenv("RETELL_API_KEY", "k")
+    assert isinstance(VoiceClient.from_env()._provider, RetellProvider)
+
+
+def test_from_env_max_age_parsed_and_bad_value_rejected() -> None:
+    env = {"RETELL_API_KEY": "k", "RETELL_WEBHOOK_MAX_AGE": "60"}
+    assert VoiceClient.from_env("retell", environ=env)._provider._webhook_max_age == 60.0  # type: ignore[attr-defined]
+    env["RETELL_WEBHOOK_MAX_AGE"] = "soon"
+    with pytest.raises(ValueError, match="RETELL_WEBHOOK_MAX_AGE"):
+        VoiceClient.from_env("retell", environ=env)
+
+
+def test_from_env_empty_optional_values_are_unset() -> None:
+    env = {"RETELL_API_KEY": "k", "RETELL_WEBHOOK_SECRET": "", "RETELL_WEBHOOK_MAX_AGE": ""}
+    c = VoiceClient.from_env("retell", environ=env)
+    assert c._provider._webhook_max_age == 300  # type: ignore[attr-defined]
+
+
+def test_from_env_overrides_win() -> None:
+    env = {"VAPI_API_KEY": "k", "VAPI_WEBHOOK_SECRET": "env"}
+    c = VoiceClient.from_env("vapi", environ=env, timeout=5, webhook_secret="over")
+    assert c._provider._webhook_secret == "over"  # type: ignore[attr-defined]
+    assert c._provider._http._client().timeout == httpx.Timeout(5)  # type: ignore[attr-defined]
+
+
+def test_from_env_override_max_age_wins_over_env() -> None:
+    env = {"RETELL_API_KEY": "k", "RETELL_WEBHOOK_MAX_AGE": "60"}
+    c = VoiceClient.from_env("retell", environ=env, webhook_max_age=None)
+    assert c._provider._webhook_max_age is None  # type: ignore[attr-defined]
+
+
+def test_from_env_vapi_max_age_env_raises_not_supported() -> None:
+    with pytest.raises(NotSupported):
+        VoiceClient.from_env("vapi", environ={"VAPI_API_KEY": "k", "VAPI_WEBHOOK_MAX_AGE": "60"})
+
+
+@pytest.mark.parametrize("value", [300, None])
+def test_vapi_with_max_age_raises_not_supported(value: float | None) -> None:
+    with pytest.raises(NotSupported, match="no timestamp"):
+        VoiceClient("vapi", "k", webhook_max_age=value)
+
+
+def test_retell_default_max_age_is_300() -> None:
+    assert VoiceClient("retell", "k")._provider._webhook_max_age == 300  # type: ignore[attr-defined]
+
+
+def test_retell_explicit_none_disables_replay_check() -> None:
+    c = VoiceClient("retell", "k", webhook_max_age=None)
+    assert c._provider._webhook_max_age is None  # type: ignore[attr-defined]
+
+
+def test_timeout_forwarded_to_provider() -> None:
+    c = VoiceClient("vapi", "k", timeout=5)
+    assert c._provider._http._client().timeout == httpx.Timeout(5)  # type: ignore[attr-defined]
+    c.close()
+
+
+def test_list_calls_limit_delegates() -> None:
+    from unittest.mock import MagicMock
+
+    c = VoiceClient("vapi", "k")
+    m = MagicMock()
+    c._provider = m
+    c.list_calls(limit=5)
+    m.list_calls.assert_called_once_with(limit=5)
+
+
+async def test_alist_calls_limit_delegates() -> None:
+    from unittest.mock import AsyncMock
+
+    c = VoiceClient("vapi", "k")
+    m = AsyncMock()
+    c._provider = m
+    await c.alist_calls(limit=5)
+    m.alist_calls.assert_awaited_once_with(limit=5)
+
+
+def test_tool_response_delegates() -> None:
+    from unittest.mock import MagicMock
+
+    c = VoiceClient("vapi", "k")
+    m = MagicMock()
+    m.tool_response.return_value = {"x": 1}
+    c._provider = m
+    ev = ToolCall(provider="vapi", call_id="c", name="n", tool_call_id="t", raw={})
+    assert c.tool_response(ev, {"ok": True}) == {"x": 1}
+    m.tool_response.assert_called_once_with(ev, {"ok": True})
