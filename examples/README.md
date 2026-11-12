@@ -10,7 +10,7 @@ Creates an agent and places an outbound call.
 export VOICE_PROVIDER=vapi          # or retell
 export VAPI_API_KEY=...             # or RETELL_API_KEY
 export TO_NUMBER=+15551234567
-export FROM_NUMBER=+15557654321     # required for Retell; optional for Vapi
+export FROM_NUMBER=+15557654321     # caller number, required on both providers
 python examples/quickstart.py
 ```
 

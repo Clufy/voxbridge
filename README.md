@@ -29,6 +29,7 @@ Set the provider and its key, then build the client from the environment:
 ```bash
 export VOICE_PROVIDER=vapi        # or retell
 export VAPI_API_KEY=...           # or RETELL_API_KEY
+export FROM_NUMBER=+15557654321   # your caller number
 ```
 
 ```python
@@ -45,13 +46,15 @@ with VoiceClient.from_env() as client:
         first_message="Hi, how can I help?",
     ))
     call = client.create_call(
-        agent.id, "+15551234567", from_number=os.environ.get("FROM_NUMBER")
+        agent.id, "+15551234567", from_number=os.environ["FROM_NUMBER"]
     )
     print(call.id, call.status)
 ```
 
-`from_number` is required on Retell; on Vapi it is optional and looked up among
-your phone numbers. The explicit form takes the same options:
+Outbound calls need a caller number (`from_number`) on both providers: Retell
+raises `ValueError` without it; on Vapi pass an E.164 number (looked up among
+your Vapi phone numbers) or a phone-number id. The explicit form takes the same
+options:
 
 ```python
 from voxbridge import VoiceClient
@@ -59,7 +62,9 @@ from voxbridge import VoiceClient
 client = VoiceClient(provider="retell", api_key="key_...", webhook_secret="key_...")
 ```
 
-Every method has an `a`-prefixed awaitable twin (`await client.acreate_call(...)`).
+Every agent/call method has an `a`-prefixed async twin
+(`await client.acreate_call(...)`); `parse_webhook`, `verify_signature` and
+`tool_response` are sync.
 See the [quickstart guide](https://aquib.github.io/voxbridge/quickstart/) for
 agents with tools, async usage and more.
 
@@ -108,7 +113,7 @@ async def tools(request: Request) -> JSONResponse:
 > Retell is verified by default with your API key.
 
 A fuller, runnable server (webhooks and tools) is in
-[`examples/`](examples/); the
+[`examples/`](https://github.com/Aquib/voxbridge/tree/main/examples); the
 [webhooks guide](https://aquib.github.io/voxbridge/webhooks/) covers verification,
 event mapping and per-provider limits.
 
@@ -126,7 +131,7 @@ All errors derive from `VoxBridgeError`.
 
 `AuthError` and `RateLimited` are subclasses of `ProviderError`. Each request is
 retried at most once: connect errors, connect timeouts and 429s for any request,
-read/write timeouts, 5xx and other transport errors for idempotent requests
+read/write timeouts, 500/502/503/504 and other transport errors for idempotent requests
 only, honouring `Retry-After` up to 10 seconds.
 
 ```python

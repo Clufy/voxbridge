@@ -42,8 +42,8 @@ class VoiceClient:
     """Provider-agnostic entry point: same API regardless of backend.
 
     Requests are retried at most once. Connect errors, connect timeouts and 429
-    responses are retried for any request; read/write timeouts, 5xx responses
-    and other transport errors only for idempotent requests. A ``Retry-After``
+    responses are retried for any request; read/write timeouts, 500/502/503/504
+    responses and other request errors only for idempotent requests. A ``Retry-After``
     header is honoured, capped at 10 seconds. Capabilities a provider lacks raise ``NotSupported``.
     """
 
@@ -162,9 +162,10 @@ class VoiceClient:
         Args:
             agent_id: The agent that will handle the call.
             to_number: Destination number in E.164 format.
-            from_number: Caller number in E.164 format. Required by Retell
-                (ValueError if missing); on Vapi it is looked up among your
-                phone numbers.
+            from_number: Caller number; needed for outbound calls on both
+                providers. Retell requires an E.164 number (ValueError if
+                missing). On Vapi pass an E.164 number, looked up among your
+                phone numbers, or a phone-number id.
 
         Raises:
             ValueError: On Retell, if from_number is missing.

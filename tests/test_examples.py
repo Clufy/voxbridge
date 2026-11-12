@@ -99,3 +99,17 @@ def test_quickstart_maps_voice_per_provider(
         assert sent["voice"] == {"provider": "openai", "voiceId": "alloy"}
     else:
         assert sent["voice_id"] == "openai-alloy"
+
+
+@pytest.mark.parametrize("provider", ["vapi", "retell"])
+def test_quickstart_requires_from_number_before_any_request(
+    monkeypatch: pytest.MonkeyPatch, provider: str
+) -> None:
+    monkeypatch.setenv("VOICE_PROVIDER", provider)
+    monkeypatch.setenv(f"{provider.upper()}_API_KEY", "k")
+    monkeypatch.setenv("TO_NUMBER", "+15550000002")
+    monkeypatch.delenv("FROM_NUMBER", raising=False)
+    mod: Any = _load_example("quickstart")
+    with respx.mock() as router, pytest.raises(KeyError, match="FROM_NUMBER"):
+        mod.main()
+    assert len(router.calls) == 0

@@ -29,7 +29,7 @@ client = VoiceClient(
 | Variable | Used for |
 | --- | --- |
 | `VOICE_PROVIDER` | Provider name (skipped if you pass `provider=`). |
-| `VAPI_API_KEY` / `RETELL_API_KEY` | `api_key`. Required. |
+| `VAPI_API_KEY` / `RETELL_API_KEY` | `api_key`. Required unless you pass `api_key=`. |
 | `VAPI_WEBHOOK_SECRET` / `RETELL_WEBHOOK_SECRET` | `webhook_secret`. |
 | `RETELL_WEBHOOK_MAX_AGE` | `webhook_max_age`, a number. Setting `VAPI_WEBHOOK_MAX_AGE` raises `NotSupported`. |
 
@@ -40,6 +40,7 @@ non-numeric max age raises `ValueError` with a message naming the variable.
 VoiceClient.from_env()                       # provider from VOICE_PROVIDER
 VoiceClient.from_env("vapi")                 # explicit provider
 VoiceClient.from_env("retell", timeout=60)   # keyword overrides win over the environment
+VoiceClient.from_env("vapi", api_key=key)    # key from elsewhere; VAPI_API_KEY not needed
 VoiceClient.from_env(environ={"VOICE_PROVIDER": "vapi", "VAPI_API_KEY": "sk-..."})  # custom mapping
 ```
 

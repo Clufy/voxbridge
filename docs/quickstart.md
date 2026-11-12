@@ -69,9 +69,9 @@ for c in client.list_calls(limit=20):
     print(c.id, c.status)
 ```
 
-`from_number` is required on Retell (omitting it raises `ValueError`). On Vapi,
-an E.164 number is looked up among your phone numbers (`ProviderError` if none
-matches).
+Outbound calls need a caller number (`from_number`) on both providers. Retell
+raises `ValueError` without it. On Vapi, pass an E.164 number, looked up among
+your phone numbers (`ProviderError` if none matches), or a phone-number id.
 
 ## Handle a webhook
 
@@ -99,7 +99,8 @@ going to production. A runnable FastAPI server is in
 
 ## Async
 
-Every method has an `a`-prefixed awaitable twin with the same signature:
+Every agent/call method has an `a`-prefixed async twin with the same signature
+(`parse_webhook`, `verify_signature` and `tool_response` are sync):
 
 ```python
 async with VoiceClient.from_env() as client:

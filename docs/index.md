@@ -18,7 +18,7 @@ voxbridge absorbs those differences behind one small surface:
   keeps the untouched provider payload under `.raw`.
 - **Normalized webhooks**: each provider's envelope maps to one `WebhookEvent`
   union, with per-provider signature verification.
-- **Sync and async**: every method has an `a`-prefixed awaitable twin.
+- **Sync and async**: every agent/call method has an `a`-prefixed async twin.
 - **No silent gaps**: a capability a provider lacks raises `NotSupported`.
 
 ## Install

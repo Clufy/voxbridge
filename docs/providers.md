@@ -8,7 +8,7 @@ voxbridge supports two providers, selected by the `provider` string passed to
 | Capability | Vapi | Retell | Notes |
 | --- | --- | --- | --- |
 | Agent create / update / get / delete | yes | yes | Retell create is 2 API calls (LLM, then agent); update is 2 writes |
-| Outbound call | yes | yes | `create_call(agent_id, to_number, from_number=...)`; `from_number` required on Retell |
+| Outbound call | yes | yes | `create_call(agent_id, to_number, from_number=...)`; pass a caller `from_number` on both (Retell raises `ValueError` without it) |
 | Get call / list calls | yes | yes | Default list size: Vapi 100, Retell 50; pass `limit=` |
 | Transcript on call | yes | yes | Retell `list_calls` items carry none; use `get_call` |
 | Webhook events | yes | yes | Normalized to one `WebhookEvent` union |
@@ -16,7 +16,7 @@ voxbridge supports two providers, selected by the `provider` string passed to
 | Signature scheme | shared secret / Bearer | HMAC-SHA256 | `X-Vapi-Secret` vs `x-retell-signature` |
 | Replay protection | no | yes | Vapi's scheme has no timestamp; Retell `webhook_max_age` (300 s) |
 | Tool round trip | yes | yes | `tool_response` shapes the reply per provider |
-| Sync + async | yes | yes | `a`-prefixed twins |
+| Sync + async | yes | yes | `a`-prefixed twins for agent/call methods; webhook helpers are sync |
 
 Anything a provider lacks raises `NotSupported`; voxbridge never no-ops silently.
 
@@ -38,6 +38,8 @@ On Vapi, `Call.from_number` holds the **Vapi phone-number id**, because Vapi's c
 object doesn't echo the number. When you pass an E.164 `from_number` to
 `create_call`, voxbridge looks it up in your Vapi phone numbers and sends the id
 (`ProviderError` if none matches); a value not starting with `+` is sent as an id.
+The lookup reads one page of `GET /phone-number` (Vapi's default page size), so
+pass the phone-number id directly if your account has many numbers.
 On Retell it is the number itself.
 
 ### Retell `list_calls` has no transcript
@@ -70,8 +72,23 @@ the agent references. voxbridge handles both, with these consequences:
 settings voxbridge doesn't model (voice stability, Vapi non-function tools,
 Retell built-in tools such as `end_call`). Because unset means "leave alone",
 `update_agent` cannot **clear** the greeting (`first_message=None`) or remove all
-tools in 0.1.0. When `tools` is non-empty it replaces the custom function tools
-and keeps the built-ins.
+tools in 0.1.0. When `tools` is non-empty it sets the custom function tools to
+exactly that list and keeps the built-ins. A tool whose name matches one already
+on the agent keeps its provider-only settings (Vapi `server.secret`,
+`server.headers`, `async`; Retell `headers`, `query_params`, `method`,
+`response_variables`, `speak_*`, `timeout_ms`); voxbridge only overwrites the
+name, description, parameters and URL. On Vapi, a model provider set outside
+voxbridge (for example `groq`) is kept while the model name is unchanged, and
+voice settings are kept while the voice provider is unchanged; switching voice
+provider starts a fresh voice block.
+
+### Retell tools need a URL
+
+Retell calls a custom tool at its URL, so every `Tool` passed to Retell
+`create_agent` / `update_agent` needs `endpoint_url`. A tool without one raises
+`ValueError("Retell custom tools require endpoint_url: <name>")` before any
+request is sent. On Vapi, a tool without `endpoint_url` uses the assistant's
+server URL.
 
 ### Webhook authentication
 

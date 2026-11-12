@@ -1,8 +1,11 @@
 """Create an agent and place a call, on whichever provider the env selects.
 
-    VOICE_PROVIDER=vapi VAPI_API_KEY=... TO_NUMBER=+15551234567 python examples/quickstart.py
+    export VOICE_PROVIDER=vapi VAPI_API_KEY=...
+    export TO_NUMBER=+15551234567 FROM_NUMBER=+15557654321
+    python examples/quickstart.py
 
-Retell also needs FROM_NUMBER (an E.164 number you own).
+FROM_NUMBER is the caller number, required on both providers: an E.164 number
+you own (on Vapi, a number imported into your account, or its phone-number id).
 """
 
 from __future__ import annotations
@@ -13,6 +16,8 @@ from voxbridge import Agent, VoiceClient
 
 
 def main() -> None:
+    to_number = os.environ["TO_NUMBER"]
+    from_number = os.environ["FROM_NUMBER"]
     with VoiceClient.from_env() as client:
         agent = client.create_agent(
             Agent(
@@ -25,9 +30,7 @@ def main() -> None:
             )
         )
         assert agent.id is not None
-        call = client.create_call(
-            agent.id, os.environ["TO_NUMBER"], from_number=os.environ.get("FROM_NUMBER")
-        )
+        call = client.create_call(agent.id, to_number, from_number=from_number)
         print(f"agent {agent.id} calling: call {call.id} is {call.status}")
 
 

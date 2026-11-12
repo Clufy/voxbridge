@@ -43,13 +43,17 @@ First release.
   prompt, greeting, model and tools are no longer dropped; `update_agent` raises
   `NotSupported` for non-`retell-llm` agents.
 - Retell `create_agent` deletes the LLM it created if agent creation fails.
-- Retell `list_calls` uses the v3 endpoint; Retell voice ids round-trip through
+- Retell `list_calls` now reads the v3 `items` envelope; Retell voice ids round-trip through
   the canonical `"<tts-provider>:<voiceId>"` form (`elevenlabs` becomes `11labs`).
 - Retell custom-function requests parse to `ToolCall`.
 - Retell `create_call` raises `ValueError` up front when `from_number` is missing.
-- Retries: only idempotent requests are retried on read/write timeouts and 5xx
-  responses; connect errors, connect timeouts and 429s are retried for any
+- Retries: only idempotent requests are retried on read/write timeouts and
+  500/502/503/504 responses; connect errors, connect timeouts and 429s are retried for any
   request; `Retry-After` (seconds or HTTP date) is honoured, capped at 10 seconds.
 - Passing `webhook_max_age` for Vapi raises `NotSupported` instead of being
   ignored; `from_env` rejects an unknown provider before reading other variables.
 - Malformed webhook bodies raise `ProviderError` rather than a bare decode error.
+- `update_agent` keeps per-tool provider settings (Vapi server secret and headers,
+  Retell headers and timeouts) for tools it re-sends.
+- Retell `create_agent` / `update_agent` raise `ValueError` up front for a tool
+  without `endpoint_url`.

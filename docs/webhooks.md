@@ -90,6 +90,12 @@ async def tools(request: Request) -> JSONResponse:
     return JSONResponse(client.tool_response(event, result))   # HTTP 200
 ```
 
+!!! note "Vapi tool endpoints and `VAPI_WEBHOOK_SECRET`"
+    voxbridge registers Vapi tools with `server.url` only. If your tool endpoint
+    verifies with `VAPI_WEBHOOK_SECRET`, configure the matching server
+    secret/credential on the assistant or tool in Vapi. An existing one is
+    preserved when voxbridge updates the agent.
+
 `ToolCall` carries `name`, `arguments` (a dict) and `tool_call_id`. Send the value
 of `client.tool_response(event, result)` back as the JSON body with status 200;
 `result` must be JSON-serializable.
