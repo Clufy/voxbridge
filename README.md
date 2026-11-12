@@ -3,21 +3,16 @@
 [![CI](https://github.com/Aquib/voxbridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Aquib/voxbridge/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/voxbridge.svg)](https://pypi.org/project/voxbridge/)
 [![Python](https://img.shields.io/pypi/pyversions/voxbridge.svg)](https://pypi.org/project/voxbridge/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-aquib.github.io%2Fvoxbridge-blue.svg)](https://aquib.github.io/voxbridge/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Aquib/voxbridge/blob/main/LICENSE)
 
-One interface over multiple voice-agent platforms. Write your integration once
-against `voxbridge`; switch between [Vapi](https://vapi.ai) and
-[Retell](https://retellai.com) with a config string.
-
-- **One API, many providers** — agents, calls, tools, and webhooks through a
-  single `VoiceClient`.
-- **Typed domain models** — Pydantic v2 `Agent` / `Call` / `Tool`; every model
-  keeps the untouched provider payload under `.raw`.
-- **Normalized webhooks** — each provider's webhook envelope maps to one
-  `WebhookEvent` union, with per-provider signature verification.
-- **Sync and async** — every call has an `a`-prefixed awaitable twin.
-- **No silent gaps** — a capability missing on a provider raises `NotSupported`,
-  never a no-op.
+voxbridge is a Python SDK that puts one typed `VoiceClient` over the
+[Vapi](https://vapi.ai) and [Retell](https://retellai.com) voice-agent
+platforms. Create agents, place outbound calls, verify and parse webhooks, and
+answer tool calls with the same code on either provider; switching is a config
+string. Both sync and async are supported, every model keeps the untouched
+provider payload under `.raw`, and a capability a provider lacks raises
+`NotSupported` instead of silently doing nothing.
 
 ## Install
 
@@ -25,83 +20,150 @@ against `voxbridge`; switch between [Vapi](https://vapi.ai) and
 pip install voxbridge
 ```
 
-Runtime deps: `httpx` and `pydantic` only. Requires Python 3.12+.
+Requires Python 3.12+. Runtime dependencies are `httpx` and `pydantic` only.
 
 ## Quickstart
 
-```python
-from voxbridge import VoiceClient, Agent, Tool
+Set the provider and its key, then build the client from the environment:
 
-client = VoiceClient(provider="vapi", api_key="sk-...")  # or provider="retell"
-
-agent = client.create_agent(Agent(
-    name="Scheduler",
-    system_prompt="You are a friendly scheduling assistant.",
-    model="gpt-4o",
-    voice="elevenlabs:rachel",
-    first_message="Hi, this is Scheduler. How can I help?",
-    tools=[Tool(
-        name="book_appointment",
-        description="Book an appointment slot",
-        parameters={"type": "object", "properties": {"day": {"type": "string"}}},
-        endpoint_url="https://example.com/tools/book",
-    )],
-))
-
-call = client.create_call(agent.id, to_number="+15550000000")
-print(call.status, call.transcript)
-
-client.close()
+```bash
+export VOICE_PROVIDER=vapi        # or retell
+export VAPI_API_KEY=...           # or RETELL_API_KEY
 ```
 
-### Async
-
 ```python
-async with VoiceClient(provider="retell", api_key="sk-...") as client:
-    agent = await client.acreate_agent(Agent(...))
-    call = await client.aget_call("call_123")
+import os
+
+from voxbridge import Agent, VoiceClient
+
+with VoiceClient.from_env() as client:
+    agent = client.create_agent(Agent(
+        name="Front desk",
+        system_prompt="You are a friendly receptionist. Keep answers short.",
+        model="gpt-4o",
+        voice="openai:alloy",          # "<tts-provider>:<voiceId>"
+        first_message="Hi, how can I help?",
+    ))
+    call = client.create_call(
+        agent.id, "+15551234567", from_number=os.environ.get("FROM_NUMBER")
+    )
+    print(call.id, call.status)
 ```
 
-### Webhooks
+`from_number` is required on Retell; on Vapi it is optional and looked up among
+your phone numbers. The explicit form takes the same options:
 
 ```python
-from voxbridge import CallEnded, TranscriptChunk
+from voxbridge import VoiceClient
 
-event = client.parse_webhook(request.headers, request.body)  # verifies signature
-match event:
-    case CallEnded(call_id=cid, transcript=t, ended_reason=r):
-        ...
-    case TranscriptChunk(role=role, text=text):
-        ...
+client = VoiceClient(provider="retell", api_key="key_...", webhook_secret="key_...")
 ```
 
-Configure verification with `webhook_secret`; enable Retell replay protection
-with `webhook_max_age` (seconds):
+Every method has an `a`-prefixed awaitable twin (`await client.acreate_call(...)`).
+See the [quickstart guide](https://aquib.github.io/voxbridge/quickstart/) for
+agents with tools, async usage and more.
+
+## Configuration
+
+| Setting | Constructor kwarg | Environment variable | Default |
+| --- | --- | --- | --- |
+| Provider | `provider` | `VOICE_PROVIDER` | required |
+| API key | `api_key` | `VAPI_API_KEY` / `RETELL_API_KEY` | required |
+| Webhook secret | `webhook_secret` | `VAPI_WEBHOOK_SECRET` / `RETELL_WEBHOOK_SECRET` | Vapi: none (unsigned accepted); Retell: the API key |
+| Replay window (Retell only) | `webhook_max_age` | `RETELL_WEBHOOK_MAX_AGE` | `300` seconds; `None` disables |
+| HTTP timeout | `timeout` | none | `30` seconds |
+
+Keyword arguments to `from_env(**overrides)` win over environment values. Empty
+variables count as unset. voxbridge does not load `.env` files itself; see the
+[configuration guide](https://aquib.github.io/voxbridge/configuration/).
+
+## Webhooks and tools
+
+`parse_webhook` verifies the request and returns one normalized event;
+`tool_response` builds the reply a provider expects for a tool call.
 
 ```python
-client = VoiceClient(
-    provider="retell", api_key="sk-...",
-    webhook_secret="whsec_...", webhook_max_age=300,
-)
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from voxbridge import SignatureError, ToolCall, VoiceClient
+
+app = FastAPI()
+client = VoiceClient.from_env()
+
+
+@app.post("/tools")
+async def tools(request: Request) -> JSONResponse:
+    try:
+        event = client.parse_webhook(request.headers, await request.body())
+    except SignatureError:
+        return JSONResponse({"error": "invalid signature"}, status_code=401)
+    if isinstance(event, ToolCall) and event.name == "book_appointment":
+        return JSONResponse(client.tool_response(event, {"booked": event.arguments.get("day")}))
+    return JSONResponse({"error": "unknown tool"}, status_code=400)
+```
+
+> **Vapi is unauthenticated unless you set `VAPI_WEBHOOK_SECRET`.** Without a
+> secret, anyone who finds your URL can post fake events or trigger your tools.
+> Retell is verified by default with your API key.
+
+A fuller, runnable server (webhooks and tools) is in
+[`examples/`](examples/); the
+[webhooks guide](https://aquib.github.io/voxbridge/webhooks/) covers verification,
+event mapping and per-provider limits.
+
+## Error handling
+
+All errors derive from `VoxBridgeError`.
+
+| Exception | Raised when |
+| --- | --- |
+| `AuthError` | the provider returns 401/403 |
+| `RateLimited` | the provider returns 429; `.retry_after` is the seconds it asked you to wait, if given |
+| `ProviderError` | any other failed or unusable response; `.status_code`, `.body`, `.provider` |
+| `NotSupported` | the capability does not exist on the selected provider |
+| `SignatureError` | a webhook failed signature verification |
+
+`AuthError` and `RateLimited` are subclasses of `ProviderError`. Each request is
+retried at most once: connect errors, connect timeouts and 429s for any request,
+read/write timeouts, 5xx and other transport errors for idempotent requests
+only, honouring `Retry-After` up to 10 seconds.
+
+```python
+from voxbridge import RateLimited, VoiceClient
+
+client = VoiceClient.from_env()
+try:
+    client.get_call("call_123")
+except RateLimited as exc:
+    print("retry in", exc.retry_after)
 ```
 
 ## Vapi vs Retell
 
-| Capability | Vapi | Retell | Notes |
-| --- | --- | --- | --- |
-| Agent CRUD | ✅ | ✅ | Retell create = 2 API calls (LLM + agent) |
-| Outbound call | ✅ | ✅ | |
-| List calls | ✅ | ✅ | |
-| Transcript on call | ✅ | ✅ | Vapi `artifact.transcript`; Retell `transcript` |
-| Webhook events | ✅ | ✅ | Normalized to one `WebhookEvent` union |
-| Signature scheme | shared secret | HMAC-SHA256 | `X-Vapi-Secret` vs `x-retell-signature` |
-| Replay protection | ⚠️ n/a | ✅ | Vapi's scheme carries no timestamp |
-| Prompt location | inline (`model.messages`) | separate LLM object | voxbridge hides the difference |
-| Tools | ✅ | ✅ | One `Tool` definition registers with either |
-| Sync + async | ✅ | ✅ | `a`-prefixed twins |
+| | Vapi | Retell |
+| --- | --- | --- |
+| Auth header | `Authorization: Bearer` | `Authorization: Bearer` |
+| Agent create | 1 API call | 2 API calls (LLM, then agent) |
+| `list_calls()` default size | 100 | 50 (`limit` up to 1000) |
+| `list_calls` items carry a transcript | yes | no, use `get_call` |
+| Webhook verification | only if you set a secret | always, HMAC-SHA256 with the API key by default |
+| Replay protection | not available | yes, `webhook_max_age` (default 300s) |
+| Tool-call reply | `{"results": [{"toolCallId", "result"}]}`, single-line string | the result itself as the response body |
+| Voice id on the wire | `{provider, voiceId}` | `"<provider>-<voiceId>"` |
+| `Call.from_number` | the Vapi phone-number id | the number |
 
-See [docs/providers.md](docs/providers.md) for the full breakdown.
+Voice ids are always written `"<tts-provider>:<voiceId>"` (`elevenlabs` is
+normalized to `11labs`), but the voice catalogs differ between providers. See
+[providers](https://aquib.github.io/voxbridge/providers/) for the full matrix
+and known differences.
+
+## More
+
+- [Documentation](https://aquib.github.io/voxbridge/)
+- [Changelog](https://github.com/Aquib/voxbridge/blob/main/CHANGELOG.md)
+- [Contributing](https://github.com/Aquib/voxbridge/blob/main/CONTRIBUTING.md)
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Aquib/voxbridge/blob/main/LICENSE)

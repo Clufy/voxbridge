@@ -30,8 +30,11 @@ plugins:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
+  - Configuration: configuration.md
+  - Webhooks & tools: webhooks.md
   - Providers: providers.md
   - API reference: api.md
+  - Changelog: changelog.md
 # SDD plan/spec live under docs/ for repo history but aren't part of the site.
 exclude_docs: |
   superpowers/
@@ -39,3 +42,6 @@ markdown_extensions:
   - admonition
   - pymdownx.highlight
   - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true

@@ -2,17 +2,31 @@
 
 ## Create a client
 
+Set the provider and its key in the environment and build the client from it:
+
+```bash
+export VOICE_PROVIDER=vapi        # or retell
+export VAPI_API_KEY=...           # or RETELL_API_KEY
+```
+
 ```python
 from voxbridge import VoiceClient
 
+client = VoiceClient.from_env()
+```
+
+The explicit form takes the same options (see [Configuration](configuration.md)):
+
+```python
 client = VoiceClient(provider="vapi", api_key="sk-...")  # or provider="retell"
 ```
 
-Unknown provider strings raise `ValueError`. The client is a context manager:
+Unknown provider names raise `ValueError`. The client is a context manager and
+`close()` runs on exit:
 
 ```python
-with VoiceClient(provider="vapi", api_key="sk-...") as client:
-    ...  # client.close() runs on exit
+with VoiceClient.from_env() as client:
+    ...
 ```
 
 ## Create an agent
@@ -24,7 +38,7 @@ agent = client.create_agent(Agent(
     name="Scheduler",
     system_prompt="You are a friendly scheduling assistant.",
     model="gpt-4o",
-    voice="elevenlabs:rachel",       # "provider:voiceId", or a bare voice id
+    voice="elevenlabs:rachel",       # "<tts-provider>:<voiceId>"
     first_message="Hi, this is Scheduler. How can I help?",
     tools=[Tool(
         name="book_appointment",
@@ -37,60 +51,85 @@ print(agent.id)          # provider-assigned id
 print(agent.raw)         # the untouched provider payload
 ```
 
-The same `Agent` works for either provider — voxbridge maps the prompt, voice,
-and tools into each provider's native shape (for Retell, that means creating the
-separate LLM object and the agent that references it, in two API calls).
+The same `Agent` works on either provider; voxbridge maps the prompt, voice and
+tools into each provider's native shape. Voice ids are `"<tts-provider>:<voiceId>"`
+(`elevenlabs` is normalized to `11labs`), but the voice catalogs differ between
+providers, so check the voice exists on the one you use. Retell stores the prompt
+on a separate LLM object, so `create_agent` makes two API calls there; see
+[Providers](providers.md) for what that means for updates and failures.
 
 ## Place a call
 
 ```python
-call = client.create_call(agent.id, to_number="+15550000000", from_number="+15550000001")
+call = client.create_call(agent.id, "+15550000000", from_number="+15550000001")
 call = client.get_call(call.id)
 print(call.status, call.transcript)
 
-for c in client.list_calls():
+for c in client.list_calls(limit=20):
     print(c.id, c.status)
 ```
 
+`from_number` is required on Retell (omitting it raises `ValueError`). On Vapi,
+an E.164 number is looked up among your phone numbers (`ProviderError` if none
+matches).
+
 ## Handle a webhook
 
-`parse_webhook` verifies the signature (when a `webhook_secret` is configured)
-and normalizes the payload to a `WebhookEvent`:
+`parse_webhook` verifies the request and normalizes it to a `WebhookEvent`. Pass
+the raw body bytes, not re-serialized JSON:
 
 ```python
-from voxbridge import CallEnded, TranscriptChunk, ToolCall
+from voxbridge import CallEnded, ToolCall, TranscriptChunk
 
-client = VoiceClient(provider="vapi", api_key="sk-...", webhook_secret="whsec_...")
-
-event = client.parse_webhook(request.headers, request.body)  # raw bytes
+event = client.parse_webhook(request.headers, raw_body)
 match event:
     case CallEnded(call_id=cid, transcript=t, ended_reason=r):
         ...
     case TranscriptChunk(role=role, text=text):
         ...
-    case ToolCall(name=name, arguments=args, tool_call_id=tid):
-        ...
+    case ToolCall(name=name, arguments=args):
+        reply = client.tool_response(event, {"ok": True})  # return as the HTTP 200 JSON body
 ```
 
-A tampered body (bad signature) raises `SignatureError`; a malformed body raises
-`ProviderError`. For Retell, enable replay protection with `webhook_max_age`:
-
-```python
-client = VoiceClient(
-    provider="retell", api_key="sk-...",
-    webhook_secret="whsec_...", webhook_max_age=300,   # reject signatures > 5 min old
-)
-```
+A failed verification raises `SignatureError`; a malformed body raises
+`ProviderError`. Verification rules differ per provider (Vapi accepts unsigned
+requests unless you set a secret), so read [Webhooks & tools](webhooks.md) before
+going to production. A runnable FastAPI server is in
+[`examples/fastapi_server.py`](https://github.com/Aquib/voxbridge/blob/main/examples/fastapi_server.py).
 
 ## Async
 
 Every method has an `a`-prefixed awaitable twin with the same signature:
 
 ```python
-async with VoiceClient(provider="retell", api_key="sk-...") as client:
-    agent = await client.acreate_agent(Agent(...))
+async with VoiceClient.from_env() as client:
+    agent = await client.acreate_agent(Agent(
+        name="Scheduler", system_prompt="Be brief.", model="gpt-4o", voice="openai:alloy",
+    ))
     call = await client.aget_call("call_123")
     calls = await client.alist_calls()
 ```
 
-`parse_webhook` and `verify_signature` stay synchronous — they do no I/O.
+`parse_webhook`, `verify_signature` and `tool_response` stay synchronous; they do
+no I/O.
+
+## Handle errors
+
+```python
+from voxbridge import AuthError, NotSupported, ProviderError, RateLimited
+
+try:
+    client.get_call("call_123")
+except RateLimited as exc:
+    print("retry in", exc.retry_after)
+except AuthError:
+    print("check your API key")
+except ProviderError as exc:
+    print(exc.status_code, exc.body)
+except NotSupported as exc:
+    print("not available on this provider:", exc)
+```
+
+`AuthError` and `RateLimited` subclass `ProviderError`, so catch them first. Each
+request is retried at most once; see the [API reference](api.md) for the exact
+policy.

@@ -41,10 +41,10 @@ _VAPI_NO_MAX_AGE = (
 class VoiceClient:
     """Provider-agnostic entry point: same API regardless of backend.
 
-    Requests are retried at most once. Connect errors and 429 responses are
-    retried for any request; timeouts, 5xx responses and other transport errors
-    only for idempotent requests. A ``Retry-After`` header is honoured, capped
-    at 10 seconds. Capabilities a provider lacks raise ``NotSupported``.
+    Requests are retried at most once. Connect errors, connect timeouts and 429
+    responses are retried for any request; read/write timeouts, 5xx responses
+    and other transport errors only for idempotent requests. A ``Retry-After``
+    header is honoured, capped at 10 seconds. Capabilities a provider lacks raise ``NotSupported``.
     """
 
     def __init__(
