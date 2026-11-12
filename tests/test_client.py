@@ -148,6 +148,11 @@ def test_from_env_empty_key_counts_as_unset() -> None:
         VoiceClient.from_env("vapi", environ={"VAPI_API_KEY": ""})
 
 
+def test_from_env_unknown_provider_rejected_before_reading_env() -> None:
+    with pytest.raises(ValueError, match="unknown provider"):
+        VoiceClient.from_env("nope", environ={})
+
+
 def test_from_env_missing_provider() -> None:
     with pytest.raises(ValueError, match="VOICE_PROVIDER"):
         VoiceClient.from_env(environ={})

@@ -107,6 +107,8 @@ class VoiceClient:
         name = provider or env.get("VOICE_PROVIDER")
         if not name:
             raise ValueError("set VOICE_PROVIDER or pass provider=...")
+        if name not in _PROVIDERS:
+            raise ValueError(f"unknown provider {name!r}; choose from {sorted(_PROVIDERS)}")
         prefix = name.upper()
         api_key = env.get(f"{prefix}_API_KEY")
         if not api_key:
