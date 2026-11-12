@@ -3,6 +3,10 @@
     VOICE_PROVIDER=retell RETELL_API_KEY=... uvicorn examples.fastapi_server:app
 
 Point your provider's server URL at /webhooks and its tool/function URL at /tools.
+
+Authentication: Retell requests are verified by default with RETELL_API_KEY (or
+RETELL_WEBHOOK_SECRET if set), and signatures older than 5 minutes are rejected. Vapi requests
+are NOT authenticated unless you set VAPI_WEBHOOK_SECRET: without it anyone can call /tools.
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ def get_client() -> VoiceClient:
 
 
 def book_appointment(args: dict[str, Any]) -> dict[str, Any]:
-    return {"booked": args["day"]}
+    return {"booked": args.get("day")}
 
 
 TOOLS: dict[str, Callable[[dict[str, Any]], Any]] = {"book_appointment": book_appointment}

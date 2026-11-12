@@ -10,6 +10,7 @@ from types import ModuleType
 from typing import Any
 
 import pytest
+import respx
 
 pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
@@ -62,3 +63,39 @@ def test_fastapi_example_webhook_returns_204(monkeypatch: pytest.MonkeyPatch) ->
 def test_quickstart_has_no_import_side_effects() -> None:
     mod = _load_example("quickstart")
     assert callable(mod.main)
+
+
+@pytest.mark.parametrize("provider", ["vapi", "retell"])
+def test_quickstart_maps_voice_per_provider(
+    monkeypatch: pytest.MonkeyPatch, provider: str
+) -> None:
+    monkeypatch.setenv("VOICE_PROVIDER", provider)
+    monkeypatch.setenv(f"{provider.upper()}_API_KEY", "k")
+    monkeypatch.setenv("TO_NUMBER", "+15550000002")
+    monkeypatch.setenv("FROM_NUMBER", "+15550000001")
+    mod: Any = _load_example("quickstart")
+    with respx.mock(assert_all_called=True) as router:
+        if provider == "vapi":
+            agent_route = router.post("https://api.vapi.ai/assistant").respond(
+                json={"id": "a1", "name": "Front desk"}
+            )
+            router.get("https://api.vapi.ai/phone-number").respond(
+                json=[{"id": "pn1", "number": "+15550000001"}]
+            )
+            router.post("https://api.vapi.ai/call").respond(json={"id": "c1", "status": "queued"})
+        else:
+            router.post("https://api.retellai.com/create-retell-llm").respond(
+                json={"llm_id": "llm1"}
+            )
+            agent_route = router.post("https://api.retellai.com/create-agent").respond(
+                json={"agent_id": "a1", "agent_name": "Front desk"}
+            )
+            router.post("https://api.retellai.com/v2/create-phone-call").respond(
+                json={"call_id": "c1", "call_status": "registered"}
+            )
+        mod.main()
+    sent = json.loads(agent_route.calls.last.request.content)
+    if provider == "vapi":
+        assert sent["voice"] == {"provider": "openai", "voiceId": "alloy"}
+    else:
+        assert sent["voice_id"] == "openai-alloy"

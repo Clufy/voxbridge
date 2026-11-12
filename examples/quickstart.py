@@ -19,7 +19,8 @@ def main() -> None:
                 name="Front desk",
                 system_prompt="You are a friendly receptionist. Keep answers short.",
                 model="gpt-4o",
-                voice="alloy",
+                # "provider:voice"; voice catalogs differ per provider.
+                voice="openai:alloy",
                 first_message="Hi, how can I help?",
             )
         )

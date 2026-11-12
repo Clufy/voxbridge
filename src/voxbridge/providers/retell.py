@@ -113,7 +113,11 @@ class RetellProvider:
     def create_call(
         self, agent_id: str, to_number: str, *, from_number: str | None = None
     ) -> Call:
-        """Place an outbound call from an agent to ``to_number``."""
+        """Place an outbound call from an agent to ``to_number``.
+
+        Raises:
+            ValueError: If ``from_number`` is missing; Retell requires it.
+        """
         if from_number is None:
             raise ValueError(_NO_FROM_NUMBER)
         data = self._http.request(
@@ -136,7 +140,12 @@ class RetellProvider:
         return [retell_to_call(item) for item in retell_call_items(data)]
 
     def verify_signature(self, headers: Mapping[str, str], raw_body: bytes) -> bool:
-        """Return whether the webhook signature is valid."""
+        """Return whether the webhook signature is valid.
+
+        Always verifies, using ``webhook_secret`` or, failing that, the API key.
+        Signatures older than ``webhook_max_age`` seconds (default 300; ``None``
+        disables the check) are rejected.
+        """
         return verify_retell(
             headers, raw_body, self._webhook_secret, max_age=self._webhook_max_age
         )
@@ -144,8 +153,10 @@ class RetellProvider:
     def parse_webhook(self, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:
         """Verify and parse a webhook into a normalized event.
 
+        Always verifies (see ``verify_signature``).
+
         Raises:
-            SignatureError: If signature verification fails.
+            SignatureError: If verification fails or the signature is too old.
         """
         if not self.verify_signature(headers, raw_body):
             raise SignatureError("retell webhook signature verification failed")

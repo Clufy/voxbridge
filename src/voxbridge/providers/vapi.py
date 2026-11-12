@@ -73,7 +73,14 @@ class VapiProvider:
     def create_call(
         self, agent_id: str, to_number: str, *, from_number: str | None = None
     ) -> Call:
-        """Place an outbound call from an agent to ``to_number``."""
+        """Place an outbound call from an agent to ``to_number``.
+
+        An E.164 ``from_number`` (starting with ``+``) is looked up among your
+        Vapi phone numbers and sent as its phone-number id.
+
+        Raises:
+            ProviderError: If no Vapi phone number matches ``from_number``.
+        """
         if from_number is not None and from_number.startswith("+"):
             numbers = self._http.request("GET", "/phone-number")
             from_number = _resolve_number(numbers, from_number)
@@ -93,16 +100,24 @@ class VapiProvider:
         return [vapi_to_call(item) for item in data]
 
     def verify_signature(self, headers: Mapping[str, str], raw_body: bytes) -> bool:
-        """Return whether the webhook signature is valid."""
+        """Return whether the webhook signature is valid.
+
+        Returns True without checking when no ``webhook_secret`` is configured.
+        Otherwise accepts ``X-Vapi-Secret`` equal to the secret, or
+        ``Authorization: Bearer <secret>``.
+        """
         if self._webhook_secret is None:
             return True
         return verify_vapi(headers, raw_body, self._webhook_secret)
 
     def parse_webhook(self, headers: Mapping[str, str], raw_body: bytes) -> WebhookEvent:
-        """Verify and parse a webhook into a normalized event.
+        """Parse a webhook into a normalized event.
+
+        Verification is skipped when no ``webhook_secret`` is configured, so
+        unsigned requests are accepted.
 
         Raises:
-            SignatureError: If signature verification fails.
+            SignatureError: If a secret is configured and verification fails.
         """
         if self._webhook_secret is not None and not self.verify_signature(headers, raw_body):
             raise SignatureError("vapi webhook signature verification failed")

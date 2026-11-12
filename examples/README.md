@@ -26,4 +26,7 @@ export RETELL_API_KEY=...
 uvicorn examples.fastapi_server:app --port 8000
 ```
 
-Retell verifies requests with the API key by default; for Vapi set `VAPI_WEBHOOK_SECRET`.
+**Security:** Retell requests are verified by default with `RETELL_API_KEY` (or `RETELL_WEBHOOK_SECRET`
+if set), and signatures older than 5 minutes are rejected. Vapi requests are **not authenticated**
+unless you set `VAPI_WEBHOOK_SECRET`; without it, anyone can call `/tools`. Always set it in
+production.

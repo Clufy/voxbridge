@@ -39,7 +39,13 @@ _VAPI_NO_MAX_AGE = (
 
 
 class VoiceClient:
-    """Provider-agnostic entry point: same API regardless of backend."""
+    """Provider-agnostic entry point: same API regardless of backend.
+
+    Requests are retried at most once. Connect errors and 429 responses are
+    retried for any request; timeouts, 5xx responses and other transport errors
+    only for idempotent requests. A ``Retry-After`` header is honoured, capped
+    at 10 seconds. Capabilities a provider lacks raise ``NotSupported``.
+    """
 
     def __init__(
         self,
@@ -154,7 +160,13 @@ class VoiceClient:
         Args:
             agent_id: The agent that will handle the call.
             to_number: Destination number in E.164 format.
-            from_number: Caller number in E.164 format, if the provider needs one.
+            from_number: Caller number in E.164 format. Required by Retell
+                (ValueError if missing); on Vapi it is looked up among your
+                phone numbers.
+
+        Raises:
+            ValueError: On Retell, if from_number is missing.
+            ProviderError: On Vapi, if no phone number matches from_number.
         """
         return self._provider.create_call(agent_id, to_number, from_number=from_number)
 
