@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import pathlib
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from voxbridge.errors import SignatureError, VoxBridgeError
 from voxbridge.events import CallEnded, CallStarted, ErrorEvent, ToolCall, TranscriptChunk
 from voxbridge.providers._retell_map import parse_webhook as parse_retell
+from voxbridge.providers._retell_map import retell_tool_response
 from voxbridge.providers._vapi_map import parse_webhook as parse_vapi
 from voxbridge.providers.retell import RetellProvider
 from voxbridge.providers.vapi import VapiProvider
@@ -273,3 +275,22 @@ def test_client_forwards_max_age_to_retell():
     with pytest.raises(SignatureError):
         c.parse_webhook(*_retell_signed("webhook_call_started.json"))
     c.close()
+
+
+def test_custom_function_parses_to_tool_call() -> None:
+    payload = json.loads((RFX / "custom_function.json").read_text())
+    ev = parse_retell(payload)
+    assert isinstance(ev, ToolCall) and ev.name == "book_appointment"
+    assert ev.arguments == {"day": "monday"} and ev.call_id == "call_sanitized000"
+    assert ev.provider == "retell" and ev.tool_call_id is None and ev.raw == payload
+    assert retell_tool_response(ev, {"ok": True}) == {"ok": True}
+
+
+def test_custom_function_null_args_and_call() -> None:
+    ev = parse_retell({"name": "x", "args": None, "call": None})
+    assert isinstance(ev, ToolCall)
+    assert ev.arguments == {} and ev.call_id is None
+
+
+def test_payload_with_event_key_is_not_custom_function() -> None:
+    assert isinstance(parse_retell({"event": "nope", "name": "x", "args": {}}), ErrorEvent)

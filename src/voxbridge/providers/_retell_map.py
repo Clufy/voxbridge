@@ -16,11 +16,64 @@ from ..events import (
     CallEnded,
     CallStarted,
     ErrorEvent,
+    ToolCall,
     TranscriptChunk,
     WebhookEvent,
 )
-from ..models import Agent, Call
+from ..models import Agent, Call, Tool
 from ._common import normalize_role
+
+
+def voice_to_retell(spec: str) -> str:
+    """Canonical "provider:Voice" spec -> Retell voice id ("provider-Voice")."""
+    if ":" not in spec:
+        return spec
+    provider, rest = spec.split(":", 1)
+    if provider == "elevenlabs":
+        provider = "11labs"
+    return f"{provider}-{rest}"
+
+
+def voice_from_retell(voice_id: str) -> str:
+    """Retell voice id -> canonical spec; ids with ":" or no "-" pass through."""
+    if ":" in voice_id or "-" not in voice_id:
+        return voice_id
+    return voice_id.replace("-", ":", 1)
+
+
+def llm_id_of(agent_data: dict[str, Any]) -> str | None:
+    """The Retell LLM id of an agent, only for the retell-llm response engine."""
+    engine = agent_data.get("response_engine") or {}
+    if engine.get("type") != "retell-llm":
+        return None
+    llm_id = engine.get("llm_id")
+    return llm_id if isinstance(llm_id, str) else None
+
+
+def llm_update_body(agent: Agent, existing_llm: dict[str, Any]) -> dict[str, Any]:
+    """Body for updating a Retell LLM; unset fields are left out, built-in tools kept."""
+    out: dict[str, Any] = {"general_prompt": agent.system_prompt, "model": agent.model}
+    if agent.first_message is not None:
+        out["begin_message"] = agent.first_message
+    if agent.tools:
+        kept = [
+            t for t in (existing_llm.get("general_tools") or []) if t.get("type") != "custom"
+        ]
+        out["general_tools"] = [*kept, *_retell_tools(agent)]
+    return out
+
+
+def retell_call_items(data: Any) -> list[dict[str, Any]]:
+    """Call list from a v3 {"items": [...]} envelope or a bare array."""
+    if isinstance(data, dict):
+        items = data.get("items")
+        return list(items) if items else []
+    return list(data)
+
+
+def retell_tool_response(event: ToolCall, result: Any) -> Any:
+    """Retell custom functions take the result as the HTTP response body."""
+    return result
 
 
 def _retell_tools(agent: Agent) -> list[dict[str, Any]]:
@@ -56,7 +109,7 @@ def agent_to_retell(agent: Agent, llm_id: str) -> dict[str, Any]:
     """Map a voxbridge Agent to Retell's CreateAgentDTO shape, given an llm_id."""
     return {
         "response_engine": {"type": "retell-llm", "llm_id": llm_id},
-        "voice_id": agent.voice,
+        "voice_id": voice_to_retell(agent.voice),
         "agent_name": agent.name,
     }
 
@@ -75,10 +128,21 @@ def retell_to_agent(
     system_prompt = ""
     first_message = None
     model = ""
+    tools: list[Tool] = []
     if llm_data is not None:
-        system_prompt = llm_data.get("general_prompt", "")
+        system_prompt = llm_data.get("general_prompt") or ""
         first_message = llm_data.get("begin_message")
-        model = llm_data.get("model", "")
+        model = (llm_data.get("model_config") or {}).get("primary") or llm_data.get("model") or ""
+        for x in llm_data.get("general_tools") or []:
+            if x.get("type") == "custom":
+                tools.append(
+                    Tool(
+                        name=x.get("name") or "",
+                        description=x.get("description") or "",
+                        parameters=x.get("parameters") or {},
+                        endpoint_url=x.get("url"),
+                    )
+                )
 
     return Agent(
         id=agent_data.get("agent_id"),
@@ -86,8 +150,9 @@ def retell_to_agent(
         first_message=first_message,
         model=model,
         system_prompt=system_prompt,
-        voice=agent_data.get("voice_id", ""),
-        raw=agent_data,
+        voice=voice_from_retell(agent_data.get("voice_id") or ""),
+        tools=tools,
+        raw=agent_data if llm_data is None else {**agent_data, "retell_llm": llm_data},
     )
 
 
@@ -127,6 +192,15 @@ def parse_webhook(payload: dict[str, Any]) -> WebhookEvent:
     Envelope is {"event": ..., "call": {...}}; the call id is at call.call_id.
     """
     event = payload.get("event")
+    if event is None and "event" not in payload and "name" in payload and "args" in payload:
+        return ToolCall(
+            name=payload["name"],
+            arguments=payload["args"] or {},
+            tool_call_id=None,
+            call_id=(payload.get("call") or {}).get("call_id"),
+            provider="retell",
+            raw=payload,
+        )
     # `or {}` so a JSON null call coalesces the same as an absent key.
     call = payload.get("call") or {}
     common: dict[str, Any] = {

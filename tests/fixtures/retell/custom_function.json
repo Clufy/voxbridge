@@ -1,0 +1,11 @@
+{
+  "name": "book_appointment",
+  "args": {
+    "day": "monday"
+  },
+  "call": {
+    "call_id": "call_sanitized000",
+    "agent_id": "agent_sanitized000",
+    "call_status": "ongoing"
+  }
+}
