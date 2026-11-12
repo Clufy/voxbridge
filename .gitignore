@@ -14,3 +14,4 @@ htmlcov/
 .env
 site/
 uv.lock
+.claude/scheduled_tasks.lock

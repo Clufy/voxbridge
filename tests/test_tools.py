@@ -8,10 +8,8 @@ TOOL = Tool(
 )
 
 
-def _agent(**kw):
-    base = dict(name="S", system_prompt="x", model="gpt-4o", voice="v")
-    base.update(kw)
-    return Agent(**base)
+def _agent(*, model: str = "gpt-4o", tools: list[Tool] | None = None) -> Agent:
+    return Agent(name="S", system_prompt="x", model=model, voice="v", tools=tools or [])
 
 
 def test_tool_registers_with_vapi():

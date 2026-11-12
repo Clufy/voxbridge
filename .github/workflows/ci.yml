@@ -11,18 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
       - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
       - name: Install
-        run: uv pip install --system -e ".[dev]"
+        run: pip install -e ".[dev,docs]"
       - name: Ruff
         run: ruff check .
       - name: Mypy
-        run: mypy src
+        run: mypy src tests
       - name: Pytest
         run: pytest --cov=voxbridge --cov-fail-under=90
+      - name: Docs build
+        run: mkdocs build --strict
+      - name: Package build
+        run: python -m build && twine check dist/*

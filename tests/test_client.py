@@ -84,7 +84,7 @@ def test_all_delegations_forward_to_provider() -> None:
 
     c = VoiceClient("vapi", "k")
     m = MagicMock()
-    c._provider = m  # type: ignore[assignment]
+    c._provider = m
 
     agent = Agent(name="S", system_prompt="x", model="gpt-4o", voice="v")
     c.create_agent(agent)
@@ -112,7 +112,7 @@ async def test_all_async_delegations_forward_to_provider() -> None:
 
     c = VoiceClient("vapi", "k")
     m = AsyncMock()
-    c._provider = m  # type: ignore[assignment]
+    c._provider = m
 
     agent = Agent(name="S", system_prompt="x", model="gpt-4o", voice="v")
     await c.acreate_agent(agent)

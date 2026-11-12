@@ -46,6 +46,7 @@ def test_vapi_call_ended():
     assert isinstance(ev, CallEnded)
     assert ev.call_id == "call_sanitized000"
     assert ev.provider == "vapi"
+    assert ev.transcript is not None
     assert ev.transcript.startswith("AI: Hello")
     assert ev.ended_reason == "customer-ended-call"
 
@@ -96,6 +97,7 @@ def test_retell_call_ended():
     p = RetellProvider("k", webhook_secret=SECRET, webhook_max_age=None)
     ev = p.parse_webhook(*_retell_signed("webhook_call_ended.json"))
     assert isinstance(ev, CallEnded)
+    assert ev.transcript is not None
     assert ev.transcript.startswith("Agent: Hi")
     assert ev.ended_reason == "user_hangup"
 
@@ -152,6 +154,8 @@ def test_both_providers_transcript_role_normalized():
         "transcript": "hi", "call": {"id": "c1"}}})
     ev_r = parse_retell({"event": "transcript_updated", "call": {"call_id": "c1",
         "transcript_object": [{"role": "agent", "content": "hi"}]}})
+    assert isinstance(ev_v, TranscriptChunk)
+    assert isinstance(ev_r, TranscriptChunk)
     assert ev_v.role == ev_r.role == "assistant"
 
 
