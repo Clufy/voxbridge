@@ -10,7 +10,7 @@ import respx
 
 from voxbridge.errors import NotSupported, ProviderError, SignatureError
 from voxbridge.events import CallStarted, ToolCall
-from voxbridge.models import Agent
+from voxbridge.models import Agent, Tool
 from voxbridge.providers.retell import RetellProvider
 
 FX = pathlib.Path(__file__).parent / "fixtures" / "retell"
@@ -289,3 +289,29 @@ def test_retell_timeout_forwarded() -> None:
     p = RetellProvider("k", timeout=5)
     assert p._http._client().timeout == httpx.Timeout(5)
     p.close()
+
+
+# --- Retell custom tools need a url (final review #11) ----------------------
+
+
+def _agent_with_urlless_tool() -> Agent:
+    return _agent().model_copy(update={"tools": [
+        Tool(name="ok", description="d", parameters={}, endpoint_url="https://x.test/ok"),
+        Tool(name="lookup", description="d", parameters={}),
+    ]})
+
+
+@respx.mock
+def test_create_agent_tool_without_endpoint_url_raises_before_request() -> None:
+    p = RetellProvider("k")
+    with pytest.raises(ValueError, match="Retell custom tools require endpoint_url: lookup"):
+        p.create_agent(_agent_with_urlless_tool())
+    assert len(respx.calls) == 0
+
+
+@respx.mock
+def test_update_agent_tool_without_endpoint_url_raises_before_request() -> None:
+    p = RetellProvider("k")
+    with pytest.raises(ValueError, match="Retell custom tools require endpoint_url: lookup"):
+        p.update_agent("agent_sanitized000", _agent_with_urlless_tool())
+    assert len(respx.calls) == 0

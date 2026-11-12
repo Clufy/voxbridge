@@ -1,5 +1,6 @@
 import json
 import pathlib
+from typing import Any
 
 import httpx
 import pytest
@@ -183,6 +184,22 @@ def test_from_env_overrides_win() -> None:
     c = VoiceClient.from_env("vapi", environ=env, timeout=5, webhook_secret="over")
     assert c._provider._webhook_secret == "over"  # type: ignore[attr-defined]
     assert c._provider._http._client().timeout == httpx.Timeout(5)  # type: ignore[attr-defined]
+
+
+def test_from_env_api_key_override_makes_env_key_optional() -> None:
+    c = VoiceClient.from_env("retell", environ={}, api_key="over")
+    assert c._provider._webhook_secret == "over"  # type: ignore[attr-defined]
+    c2 = VoiceClient.from_env("vapi", environ={"VAPI_API_KEY": "env"}, api_key="over")
+    assert c2._provider._http._headers["Authorization"] == "Bearer over"  # type: ignore[attr-defined]
+
+
+def test_from_env_provider_is_the_positional_argument() -> None:
+    c = VoiceClient.from_env(provider="retell", environ={"RETELL_API_KEY": "k"})
+    assert isinstance(c._provider, RetellProvider)
+    # A second provider can't sneak in through **overrides: Python rejects it.
+    extra: dict[str, Any] = {"provider": "retell"}
+    with pytest.raises(TypeError, match="provider"):
+        VoiceClient.from_env("vapi", environ={"VAPI_API_KEY": "k"}, **extra)
 
 
 def test_from_env_override_max_age_wins_over_env() -> None:

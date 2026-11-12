@@ -7,7 +7,7 @@ import respx
 
 from voxbridge import VoiceClient
 from voxbridge.errors import NotSupported, ProviderError
-from voxbridge.models import Agent
+from voxbridge.models import Agent, Tool
 from voxbridge.providers.retell import RetellProvider
 from voxbridge.providers.vapi import VapiProvider
 
@@ -259,4 +259,32 @@ async def test_async_vapi_list_calls_limit() -> None:
     assert route.calls.last.request.url.params["limit"] == "5"
     await p.alist_calls()
     assert "limit" not in route.calls.last.request.url.params
+    await p.aclose()
+
+
+@pytest.mark.parametrize("method", ["acreate_agent", "aupdate_agent"])
+@respx.mock
+async def test_async_retell_tool_without_endpoint_url_raises_before_request(method: str) -> None:
+    agent = _agent().model_copy(
+        update={"tools": [Tool(name="lookup", description="d", parameters={})]}
+    )
+    p = RetellProvider("k")
+    with pytest.raises(ValueError, match="Retell custom tools require endpoint_url: lookup"):
+        if method == "acreate_agent":
+            await p.acreate_agent(agent)
+        else:
+            await p.aupdate_agent("a1", agent)
+    assert len(respx.calls) == 0
+    await p.aclose()
+
+
+@respx.mock
+async def test_async_get_agent_vapi() -> None:
+    respx.get("https://api.vapi.ai/assistant/asst_1").mock(
+        return_value=httpx.Response(200, json=ASSISTANT)
+    )
+    p = VapiProvider("k")
+    a = await p.aget_agent("asst_1")
+    assert a.id == ASSISTANT["id"] and a.model == ASSISTANT["model"]["model"]
+    assert a.raw == ASSISTANT
     await p.aclose()

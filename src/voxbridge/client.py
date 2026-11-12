@@ -101,8 +101,10 @@ class VoiceClient:
         Args:
             provider: Provider name; defaults to VOICE_PROVIDER.
             environ: Mapping to read instead of os.environ.
-            **overrides: Keyword arguments for the constructor; they win over
-                environment values.
+            **overrides: Keyword arguments for the constructor (api_key,
+                webhook_secret, webhook_max_age, timeout); they win over
+                environment values. With an api_key override, <P>_API_KEY
+                is not required.
 
         Raises:
             ValueError: If the provider or API key is missing, or
@@ -116,7 +118,7 @@ class VoiceClient:
         if name not in _PROVIDERS:
             raise ValueError(f"unknown provider {name!r}; choose from {sorted(_PROVIDERS)}")
         prefix = name.upper()
-        api_key = env.get(f"{prefix}_API_KEY")
+        api_key = overrides.pop("api_key", None) or env.get(f"{prefix}_API_KEY")
         if not api_key:
             raise ValueError(f"{prefix}_API_KEY is not set")
         kwargs: dict[str, Any] = {}

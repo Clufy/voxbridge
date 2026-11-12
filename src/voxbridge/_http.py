@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -25,9 +26,12 @@ def _parse_retry_after(value: str | None) -> float | None:
     if not value:
         return None
     try:
-        return max(0.0, float(value))
+        seconds = float(value)
     except ValueError:
         pass
+    else:
+        # inf/nan/1e400 parse as floats but aren't usable delays.
+        return max(0.0, seconds) if math.isfinite(seconds) else None
     try:
         when = parsedate_to_datetime(value)
     except (TypeError, ValueError):
@@ -55,7 +59,7 @@ def _should_retry(outcome: httpx.Response | Exception, idempotent: bool) -> floa
         return None
     if isinstance(outcome, (httpx.ConnectError, httpx.ConnectTimeout)):
         return _DEFAULT_BACKOFF
-    if isinstance(outcome, httpx.TransportError) and idempotent:
+    if isinstance(outcome, httpx.RequestError) and idempotent:
         return _DEFAULT_BACKOFF
     return None
 
@@ -101,11 +105,16 @@ class HttpCore:
     def _conn_error(self, exc: Exception) -> ProviderError:
         return ProviderError(f"{self.provider} connection error: {exc}", provider=self.provider)
 
-    @staticmethod
-    def _parse(resp: httpx.Response) -> Any:
+    def _parse(self, resp: httpx.Response) -> Any:
         if resp.status_code == 204 or not resp.content:
             return None
-        return resp.json()
+        try:
+            return resp.json()
+        except ValueError as exc:  # JSONDecodeError or UnicodeDecodeError
+            raise ProviderError(
+                f"{self.provider} {resp.status_code}: response body is not valid JSON",
+                status_code=resp.status_code, provider=self.provider, body=resp.text,
+            ) from exc
 
     def request(
         self, method: str, path: str, *, json: Any = None, params: Any = None,
@@ -116,7 +125,7 @@ class HttpCore:
             last = attempt == _MAX_ATTEMPTS
             try:
                 resp = self._client().request(method, path, json=json, params=params)
-            except httpx.TransportError as exc:
+            except httpx.RequestError as exc:
                 delay = _should_retry(exc, safe)
                 if delay is None or last:
                     raise self._conn_error(exc) from exc
@@ -139,7 +148,7 @@ class HttpCore:
             last = attempt == _MAX_ATTEMPTS
             try:
                 resp = await self._aclient().request(method, path, json=json, params=params)
-            except httpx.TransportError as exc:
+            except httpx.RequestError as exc:
                 delay = _should_retry(exc, safe)
                 if delay is None or last:
                     raise self._conn_error(exc) from exc
@@ -154,9 +163,12 @@ class HttpCore:
         raise AssertionError("unreachable")  # pragma: no cover
 
     def close(self) -> None:
+        # Reset so a later request builds a fresh client instead of using a closed one.
         if self._sync_client is not None:
             self._sync_client.close()
+            self._sync_client = None
 
     async def aclose(self) -> None:
         if self._async_client is not None:
             await self._async_client.aclose()
+            self._async_client = None

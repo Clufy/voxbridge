@@ -283,3 +283,101 @@ async def test_async_post_not_retried_on_remote_protocol_error() -> None:
         await core.arequest("POST", "/call", json={})
     assert route.call_count == 1
     await core.aclose()
+
+
+# --- Final review #10, #13, #18 ---------------------------------------------
+
+
+@pytest.mark.parametrize("value", ["inf", "-inf", "nan", "1e400", "Infinity"])
+def test_parse_retry_after_non_finite_is_none(value: str) -> None:
+    assert _parse_retry_after(value) is None
+
+
+@respx.mock
+def test_429_with_infinite_retry_after_uses_default_backoff(sleeps: list[float]) -> None:
+    respx.get(f"{BASE}/x").mock(side_effect=[
+        httpx.Response(429, headers={"Retry-After": "inf"}), httpx.Response(200, json={})])
+    HttpCore(BASE, "k", "vapi").request("GET", "/x")
+    assert sleeps == [0.5]
+
+
+@pytest.mark.parametrize("exc", [
+    httpx.TooManyRedirects("loop"),
+    httpx.DecodingError("bad gzip"),
+])
+@respx.mock
+def test_post_request_error_maps_to_provider_error_without_retry(exc: Exception) -> None:
+    route = respx.post(f"{BASE}/call").mock(side_effect=exc)
+    with pytest.raises(ProviderError) as ei:
+        HttpCore(BASE, "k", "vapi").request("POST", "/call", json={})
+    assert ei.value.__cause__ is exc
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_get_retried_on_decoding_error() -> None:
+    route = respx.get(f"{BASE}/x").mock(
+        side_effect=[httpx.DecodingError("bad"), httpx.Response(200, json={"ok": 1})])
+    assert HttpCore(BASE, "k", "vapi").request("GET", "/x") == {"ok": 1}
+    assert route.call_count == 2
+
+
+@respx.mock
+async def test_async_post_too_many_redirects_maps_to_provider_error() -> None:
+    route = respx.post(f"{BASE}/call").mock(side_effect=httpx.TooManyRedirects("loop"))
+    core = HttpCore(BASE, "k", "vapi")
+    with pytest.raises(ProviderError):
+        await core.arequest("POST", "/call", json={})
+    assert route.call_count == 1
+    await core.aclose()
+
+
+@respx.mock
+def test_2xx_non_json_body_is_provider_error() -> None:
+    respx.get(f"{BASE}/x").mock(return_value=httpx.Response(200, text="<html>oops</html>"))
+    with pytest.raises(ProviderError) as ei:
+        HttpCore(BASE, "k", "vapi").request("GET", "/x")
+    assert ei.value.status_code == 200 and ei.value.body == "<html>oops</html>"
+    assert ei.value.provider == "vapi"
+
+
+@respx.mock
+async def test_async_2xx_non_json_body_is_provider_error() -> None:
+    respx.get(f"{BASE}/x").mock(return_value=httpx.Response(201, text="not json"))
+    core = HttpCore(BASE, "k", "retell")
+    with pytest.raises(ProviderError) as ei:
+        await core.arequest("GET", "/x")
+    assert ei.value.status_code == 201 and ei.value.body == "not json"
+    await core.aclose()
+
+
+@respx.mock
+def test_close_resets_client_so_it_is_rebuilt() -> None:
+    respx.get(f"{BASE}/x").mock(return_value=httpx.Response(200, json={"ok": 1}))
+    core = HttpCore(BASE, "k", "vapi")
+    core.request("GET", "/x")
+    core.close()
+    assert core._sync_client is None
+    assert core.request("GET", "/x") == {"ok": 1}
+    core.close()
+
+
+@respx.mock
+async def test_aclose_resets_client_so_it_is_rebuilt() -> None:
+    respx.get(f"{BASE}/x").mock(return_value=httpx.Response(200, json={"ok": 1}))
+    core = HttpCore(BASE, "k", "vapi")
+    await core.arequest("GET", "/x")
+    await core.aclose()
+    assert core._async_client is None
+    assert await core.arequest("GET", "/x") == {"ok": 1}
+    await core.aclose()
+
+
+@respx.mock
+async def test_async_post_not_retried_on_read_timeout() -> None:
+    route = respx.post(f"{BASE}/call").mock(side_effect=httpx.ReadTimeout("t"))
+    core = HttpCore(BASE, "k", "vapi")
+    with pytest.raises(ProviderError, match="connection error"):
+        await core.arequest("POST", "/call", json={})
+    assert route.call_count == 1
+    await core.aclose()

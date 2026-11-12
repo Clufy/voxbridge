@@ -205,3 +205,9 @@ def test_tool_response_delegates() -> None:
     assert VapiProvider("k").tool_response(ev, "ok") == {
         "results": [{"toolCallId": "t1", "result": "ok"}]
     }
+
+
+def test_verify_signature_without_secret_returns_true() -> None:
+    p = VapiProvider("k")
+    assert p.verify_signature({}, b"{}") is True
+    assert p.verify_signature({"X-Vapi-Secret": "anything"}, b"{}") is True

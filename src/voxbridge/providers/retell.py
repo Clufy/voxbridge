@@ -45,6 +45,13 @@ def _no_llm_engine(agent_id: str) -> NotSupported:
     )
 
 
+def _require_tool_urls(agent: Agent) -> None:
+    """Retell custom tools are called at their url, so it is required."""
+    for tool in agent.tools:
+        if tool.endpoint_url is None:
+            raise ValueError(f"Retell custom tools require endpoint_url: {tool.name}")
+
+
 def _agent_patch(agent: Agent) -> dict[str, str]:
     return {"agent_name": agent.name, "voice_id": voice_to_retell(agent.voice)}
 
@@ -67,7 +74,12 @@ class RetellProvider:
         self._webhook_max_age = webhook_max_age
 
     def create_agent(self, agent: Agent) -> Agent:
-        """Create an agent and return it with its provider id."""
+        """Create an agent and return it with its provider id.
+
+        Raises:
+            ValueError: If a tool has no ``endpoint_url``; Retell requires it.
+        """
+        _require_tool_urls(agent)
         # Retell splits the prompt/greeting onto a separate LLM object, so
         # creating an agent takes two calls: create the LLM, then the agent
         # that references it via response_engine.llm_id.
@@ -86,7 +98,12 @@ class RetellProvider:
         return retell_to_agent(data, llm)
 
     def update_agent(self, agent_id: str, agent: Agent) -> Agent:
-        """Update an existing agent and return the result."""
+        """Update an existing agent and return the result.
+
+        Raises:
+            ValueError: If a tool has no ``endpoint_url``; Retell requires it.
+        """
+        _require_tool_urls(agent)
         existing = self._http.request("GET", f"/get-agent/{agent_id}")
         llm_id = llm_id_of(existing)
         if llm_id is None:
@@ -175,6 +192,7 @@ class RetellProvider:
 
     async def acreate_agent(self, agent: Agent) -> Agent:
         """Async version of ``create_agent``."""
+        _require_tool_urls(agent)
         llm = await self._http.arequest(
             "POST", "/create-retell-llm", json=agent_to_llm(agent)
         )
@@ -192,6 +210,7 @@ class RetellProvider:
 
     async def aupdate_agent(self, agent_id: str, agent: Agent) -> Agent:
         """Async version of ``update_agent``."""
+        _require_tool_urls(agent)
         existing = await self._http.arequest("GET", f"/get-agent/{agent_id}")
         llm_id = llm_id_of(existing)
         if llm_id is None:
