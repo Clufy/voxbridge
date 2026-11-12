@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0] - Unreleased
 
+First release, published on PyPI as `voxbridge-sdk` (import name `voxbridge`).
+
 First release.
 
 ### Added

@@ -1,8 +1,8 @@
 # voxbridge
 
 [![CI](https://github.com/Clufy/voxbridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Clufy/voxbridge/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/voxbridge.svg)](https://pypi.org/project/voxbridge/)
-[![Python](https://img.shields.io/pypi/pyversions/voxbridge.svg)](https://pypi.org/project/voxbridge/)
+[![PyPI](https://img.shields.io/pypi/v/voxbridge-sdk.svg)](https://pypi.org/project/voxbridge-sdk/)
+[![Python](https://img.shields.io/pypi/pyversions/voxbridge-sdk.svg)](https://pypi.org/project/voxbridge-sdk/)
 [![Docs](https://img.shields.io/badge/docs-clufy.github.io%2Fvoxbridge-blue.svg)](https://clufy.github.io/voxbridge/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Clufy/voxbridge/blob/main/LICENSE)
 
@@ -17,10 +17,11 @@ provider payload under `.raw`, and a capability a provider lacks raises
 ## Install
 
 ```bash
-pip install voxbridge
+pip install voxbridge-sdk
 ```
 
 Requires Python 3.12+. Runtime dependencies are `httpx` and `pydantic` only.
+The distribution is named `voxbridge-sdk`; the package you import is `voxbridge`.
 
 ## Quickstart
 

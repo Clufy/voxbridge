@@ -24,10 +24,11 @@ voxbridge absorbs those differences behind one small surface:
 ## Install
 
 ```bash
-pip install voxbridge
+pip install voxbridge-sdk
 ```
 
 Requires Python 3.12+. Runtime dependencies are `httpx` and `pydantic` only.
+The distribution is named `voxbridge-sdk`; the package you import is `voxbridge`.
 
 ## Where next
 

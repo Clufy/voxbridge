@@ -54,8 +54,8 @@ One-time setup:
 1. Create the GitHub repository `Clufy/voxbridge` and push `main`.
 2. Enable GitHub Pages for the repository, serving from the `gh-pages` branch
    (the docs workflow publishes to it).
-3. Confirm the name `voxbridge` is free on PyPI.
-4. On PyPI, add a Trusted Publisher: owner `Clufy`, repository `voxbridge`,
+3. Confirm the name `voxbridge-sdk` is free on PyPI (`voxbridge` is taken by an unrelated project).
+4. On PyPI, add a Trusted Publisher: project `voxbridge-sdk`, owner `Clufy`, repository `voxbridge`,
    workflow `publish.yml`, environment `pypi`.
 5. On GitHub, create the environment `pypi` (Settings, Environments).
 

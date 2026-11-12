@@ -1,6 +1,6 @@
 # Examples
 
-Install with `pip install voxbridge` (the FastAPI example also needs `pip install fastapi uvicorn`).
+Install with `pip install voxbridge-sdk` (the FastAPI example also needs `pip install fastapi uvicorn`).
 
 ## quickstart.py
 
