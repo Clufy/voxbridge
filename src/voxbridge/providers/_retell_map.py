@@ -68,7 +68,7 @@ def retell_call_items(data: Any) -> list[dict[str, Any]]:
     if isinstance(data, dict):
         items = data.get("items")
         return list(items) if items else []
-    return list(data)
+    return list(data) if isinstance(data, list) else []
 
 
 def retell_tool_response(event: ToolCall, result: Any) -> Any:
@@ -122,8 +122,8 @@ def retell_to_agent(
     The Retell agent object does not carry the prompt, greeting, or model —
     those live on the separate Retell LLM object. When llm_data is not
     provided (e.g. a single GET /get-agent/{id}), system_prompt/model default
-    to "" and first_message defaults to None. The raw payload preserved is
-    the untouched agent_data only; llm_data is not merged into raw.
+    to "" and first_message defaults to None. raw is agent_data; when llm_data is
+    given it is also included under the "retell_llm" key.
     """
     system_prompt = ""
     first_message = None

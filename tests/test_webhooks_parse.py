@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import pathlib
+import time
 
 import pytest
 
@@ -24,11 +25,16 @@ def _vapi_signed(name: str) -> tuple[dict[str, str], bytes]:
     return {"X-Vapi-Secret": SECRET}, body
 
 
+def _sign_retell(
+    body: bytes, secret: str = SECRET, ts: str = "1735689600000"
+) -> dict[str, str]:
+    digest = hmac.new(secret.encode(), body + ts.encode(), hashlib.sha256).hexdigest()
+    return {"x-retell-signature": f"v={ts},d={digest}"}
+
+
 def _retell_signed(name: str) -> tuple[dict[str, str], bytes]:
     body = (RFX / name).read_bytes()
-    ts = "1735689600000"
-    digest = hmac.new(SECRET.encode(), body + ts.encode(), hashlib.sha256).hexdigest()
-    return {"x-retell-signature": f"v={ts},d={digest}"}, body
+    return _sign_retell(body), body
 
 
 # --- Vapi ---------------------------------------------------------------
@@ -79,7 +85,7 @@ def test_vapi_no_secret_skips_verification():
 
 
 def test_retell_call_started():
-    p = RetellProvider("k", webhook_secret=SECRET)
+    p = RetellProvider("k", webhook_secret=SECRET, webhook_max_age=None)
     ev = p.parse_webhook(*_retell_signed("webhook_call_started.json"))
     assert isinstance(ev, CallStarted)
     assert ev.call_id == "call_sanitized000"
@@ -87,7 +93,7 @@ def test_retell_call_started():
 
 
 def test_retell_call_ended():
-    p = RetellProvider("k", webhook_secret=SECRET)
+    p = RetellProvider("k", webhook_secret=SECRET, webhook_max_age=None)
     ev = p.parse_webhook(*_retell_signed("webhook_call_ended.json"))
     assert isinstance(ev, CallEnded)
     assert ev.transcript.startswith("Agent: Hi")
@@ -95,7 +101,7 @@ def test_retell_call_ended():
 
 
 def test_retell_transcript():
-    p = RetellProvider("k", webhook_secret=SECRET)
+    p = RetellProvider("k", webhook_secret=SECRET, webhook_max_age=None)
     ev = p.parse_webhook(*_retell_signed("webhook_transcript.json"))
     assert isinstance(ev, TranscriptChunk)
     assert ev.role == "user"
@@ -104,7 +110,7 @@ def test_retell_transcript():
 
 def test_retell_tampered_body_rejected():
     headers, body = _retell_signed("webhook_call_ended.json")
-    p = RetellProvider("k", webhook_secret=SECRET)
+    p = RetellProvider("k", webhook_secret=SECRET, webhook_max_age=None)
     with pytest.raises(SignatureError):
         p.parse_webhook(headers, body + b"tampered")
 
@@ -114,7 +120,7 @@ def test_retell_tampered_body_rejected():
 
 def test_both_providers_call_ended_same_shape():
     vp = VapiProvider("k", webhook_secret=SECRET)
-    rp = RetellProvider("k", webhook_secret=SECRET)
+    rp = RetellProvider("k", webhook_secret=SECRET, webhook_max_age=None)
     ev_v = vp.parse_webhook(*_vapi_signed("webhook_call_ended.json"))
     ev_r = rp.parse_webhook(*_retell_signed("webhook_call_ended.json"))
     assert type(ev_v) is type(ev_r) is CallEnded
@@ -151,7 +157,7 @@ def test_both_providers_transcript_role_normalized():
 
 def test_verify_signature_delegates():
     headers, body = _retell_signed("webhook_call_started.json")
-    p = RetellProvider("k", webhook_secret=SECRET)
+    p = RetellProvider("k", webhook_secret=SECRET, webhook_max_age=None)
     assert p.verify_signature(headers, body) is True
     assert p.verify_signature({"x-retell-signature": "v=1,d=bad"}, body) is False
 
@@ -248,9 +254,17 @@ def test_null_transcript_text_coalesces_to_empty_string():
 @pytest.mark.parametrize("provider_cls", [VapiProvider, RetellProvider])
 @pytest.mark.parametrize("body", [b"", b"{not json", b"null", b"[]", b'"x"', b"42"])
 def test_malformed_body_raises_voxbridge_error(provider_cls, body):
-    p = provider_cls("k")  # no secret → verification skipped, reaches decode
-    with pytest.raises(VoxBridgeError):
-        p.parse_webhook({}, body)
+    p = provider_cls("k")
+    # Vapi without a secret skips verification; Retell always verifies, so sign
+    # the body with the api key to get past it and reach the decoder.
+    headers = (
+        _sign_retell(body, "k", str(int(time.time() * 1000)))
+        if provider_cls is RetellProvider
+        else {}
+    )
+    with pytest.raises(VoxBridgeError) as exc:
+        p.parse_webhook(headers, body)
+    assert not isinstance(exc.value, SignatureError)
 
 
 # --- Retell replay window is reachable through the provider (review #8) --
@@ -262,7 +276,7 @@ def test_retell_max_age_rejects_stale_through_provider():
     with pytest.raises(SignatureError):
         p.parse_webhook(*_retell_signed("webhook_call_started.json"))
     # Same request with no window configured still parses.
-    p2 = RetellProvider("k", webhook_secret=SECRET)
+    p2 = RetellProvider("k", webhook_secret=SECRET, webhook_max_age=None)
     assert isinstance(
         p2.parse_webhook(*_retell_signed("webhook_call_started.json")), CallStarted
     )

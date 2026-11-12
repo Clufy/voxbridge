@@ -55,7 +55,7 @@ def _mock_retell_routes() -> str:
         return_value=httpx.Response(200, json=RETELL_CALL)
     )
     respx.post("https://api.retellai.com/v3/list-calls").mock(
-        return_value=httpx.Response(200, json=[RETELL_CALL])
+        return_value=httpx.Response(200, json={"items": [RETELL_CALL]})
     )
     return str(RETELL_CALL["call_id"])
 

@@ -235,3 +235,8 @@ def test_retell_call_items_v3_and_bare() -> None:
     assert retell_call_items([CALL]) == [CALL]
     assert retell_call_items({"items": None}) == []
     assert retell_call_items({}) == []
+
+
+def test_retell_call_items_non_dict_non_list_is_empty() -> None:
+    assert retell_call_items(None) == []
+    assert retell_call_items("x") == []
