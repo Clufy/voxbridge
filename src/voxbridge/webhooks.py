@@ -16,9 +16,15 @@ def header_get(headers: Mapping[str, str], name: str) -> str | None:
 
 
 def verify_vapi(headers: Mapping[str, str], raw_body: bytes, secret: str) -> bool:
-    """Vapi webhook auth: plain shared-secret equality on X-Vapi-Secret."""
-    got = header_get(headers, "X-Vapi-Secret") or ""
-    return hmac.compare_digest(got, secret)
+    """Vapi webhook auth: X-Vapi-Secret equals the secret, or Authorization is its Bearer form."""
+    want = secret.encode()
+    secret_hdr = header_get(headers, "X-Vapi-Secret")
+    bearer_hdr = header_get(headers, "Authorization")
+    ok_secret = secret_hdr is not None and hmac.compare_digest(secret_hdr.encode(), want)
+    ok_bearer = bearer_hdr is not None and hmac.compare_digest(
+        bearer_hdr.encode(), b"Bearer " + want
+    )
+    return ok_secret or ok_bearer
 
 
 def verify_retell(

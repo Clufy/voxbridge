@@ -18,6 +18,20 @@ def test_vapi_missing_header():
     assert not verify_vapi({}, b"{}", "s3cr3t")
 
 
+def test_verify_vapi_bearer_header_accepted():
+    assert verify_vapi({"authorization": "Bearer s3cr3t"}, b"{}", "s3cr3t")
+
+
+def test_verify_vapi_wrong_bearer_rejected():
+    assert not verify_vapi({"Authorization": "Bearer nope"}, b"{}", "s3cr3t")
+    assert not verify_vapi({"Authorization": "s3cr3t"}, b"{}", "s3cr3t")
+
+
+def test_verify_vapi_either_header_suffices():
+    headers = {"X-Vapi-Secret": "wrong", "Authorization": "Bearer s3cr3t"}
+    assert verify_vapi(headers, b"{}", "s3cr3t")
+
+
 def test_retell_hmac_roundtrip():
     secret, body, ts = "key", b'{"event":"call_ended"}', "1720000000000"
     digest = hmac.new(secret.encode(), body + ts.encode(), hashlib.sha256).hexdigest()

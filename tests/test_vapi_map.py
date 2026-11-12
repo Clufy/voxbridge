@@ -286,3 +286,11 @@ def test_vapi_tool_response_string_and_object() -> None:
 def test_find_phone_number_id_skips_entries_without_number() -> None:
     assert find_phone_number_id(PHONE_NUMBERS, "+15550000001") == "pn_sanitized000"
     assert find_phone_number_id(PHONE_NUMBERS, "+19999999999") is None
+
+
+def test_vapi_to_agent_null_tool_description_becomes_empty() -> None:
+    data = json.loads(json.dumps(ASSISTANT))
+    data["model"]["tools"] = [
+        {"type": "function", "function": {"name": "f", "description": None, "parameters": {}}}
+    ]
+    assert vapi_to_agent(data).tools[0].description == ""

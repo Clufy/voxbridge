@@ -136,7 +136,7 @@ def vapi_to_agent(data: dict[str, Any]) -> Agent:
     tools = [
         Tool(
             name=fn.get("name", ""),
-            description=fn.get("description", ""),
+            description=fn.get("description") or "",
             parameters=fn.get("parameters") or {},
             endpoint_url=(entry.get("server") or {}).get("url"),
         )

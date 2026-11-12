@@ -2,9 +2,11 @@ import json
 import pathlib
 
 import httpx
+import pytest
 import respx
 
 from voxbridge import VoiceClient
+from voxbridge.errors import ProviderError
 from voxbridge.models import Agent
 from voxbridge.providers.retell import RetellProvider
 from voxbridge.providers.vapi import VapiProvider
@@ -13,6 +15,7 @@ VFX = pathlib.Path(__file__).parent / "fixtures" / "vapi"
 RFX = pathlib.Path(__file__).parent / "fixtures" / "retell"
 ASSISTANT = json.loads((VFX / "assistant.json").read_text())
 CALL = json.loads((VFX / "call.json").read_text())
+PHONE_NUMBERS = json.loads((VFX / "phone_numbers.json").read_text())
 RLLM = json.loads((RFX / "llm.json").read_text())
 RAGENT = json.loads((RFX / "agent.json").read_text())
 RCALL = json.loads((RFX / "call.json").read_text())
@@ -48,6 +51,9 @@ async def test_async_get_and_list_calls_vapi() -> None:
 
 @respx.mock
 async def test_async_update_and_delete_agent_vapi() -> None:
+    respx.get("https://api.vapi.ai/assistant/a1").mock(
+        return_value=httpx.Response(200, json=ASSISTANT)
+    )
     respx.patch("https://api.vapi.ai/assistant/a1").mock(
         return_value=httpx.Response(200, json=ASSISTANT)
     )
@@ -141,3 +147,51 @@ def test_async_surface_mirrors_sync() -> None:
         for m in ("create_agent", "update_agent", "get_agent", "delete_agent",
                   "create_call", "get_call", "list_calls"):
             assert hasattr(cls, m) and hasattr(cls, "a" + m)
+
+
+@respx.mock
+async def test_async_vapi_update_gets_then_patches_merged_body() -> None:
+    existing = json.loads(json.dumps(ASSISTANT))
+    existing["model"]["temperature"] = 0.3
+    get_route = respx.get("https://api.vapi.ai/assistant/a1").mock(
+        return_value=httpx.Response(200, json=existing)
+    )
+    patch_route = respx.patch("https://api.vapi.ai/assistant/a1").mock(
+        return_value=httpx.Response(200, json=ASSISTANT)
+    )
+    p = VapiProvider("k")
+    await p.aupdate_agent("a1", _agent())
+    assert get_route.call_count == 1
+    assert patch_route.call_count == 1
+    assert json.loads(patch_route.calls.last.request.content)["model"]["temperature"] == 0.3
+    await p.aclose()
+
+
+@respx.mock
+async def test_async_vapi_create_call_resolves_e164_and_unknown_raises() -> None:
+    respx.get("https://api.vapi.ai/phone-number").mock(
+        return_value=httpx.Response(200, json=PHONE_NUMBERS)
+    )
+    post = respx.post("https://api.vapi.ai/call").mock(
+        return_value=httpx.Response(201, json=CALL)
+    )
+    p = VapiProvider("k")
+    await p.acreate_call("a1", "+15551230000", from_number="+15550000001")
+    assert json.loads(post.calls.last.request.content)["phoneNumberId"] == "pn_sanitized000"
+    with pytest.raises(ProviderError):
+        await p.acreate_call("a1", "+15551230000", from_number="+19999999999")
+    assert post.call_count == 1
+    await p.aclose()
+
+
+@respx.mock
+async def test_async_vapi_list_calls_limit() -> None:
+    route = respx.get("https://api.vapi.ai/call").mock(
+        return_value=httpx.Response(200, json=[CALL])
+    )
+    p = VapiProvider("k")
+    await p.alist_calls(limit=5)
+    assert route.calls.last.request.url.params["limit"] == "5"
+    await p.alist_calls()
+    assert "limit" not in route.calls.last.request.url.params
+    await p.aclose()
