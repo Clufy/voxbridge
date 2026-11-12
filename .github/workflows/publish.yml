@@ -22,6 +22,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Check tag matches package version
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/voxbridge/__init__.py)
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match voxbridge.__version__ ($version)"
+            exit 1
+          fi
       - name: Build
         run: pip install build && python -m build
       - name: Publish to PyPI

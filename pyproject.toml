@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "voxbridge"
 dynamic = ["version"]
-description = "Provider-agnostic Python SDK over Vapi, Retell, and other voice-agent platforms."
+description = "Provider-agnostic Python SDK over the Vapi and Retell voice-agent platforms."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
@@ -14,7 +14,6 @@ keywords = ["voice", "voice-agent", "vapi", "retell", "telephony", "sdk", "webho
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
