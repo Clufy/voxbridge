@@ -1,16 +1,26 @@
 import json
 import pathlib
+from typing import Any
 
+from voxbridge.events import ToolCall
 from voxbridge.models import Agent
 from voxbridge.providers._vapi_map import (
+    _model_provider,
     _voice,
     agent_to_vapi,
     call_request,
+    find_phone_number_id,
+    merge_vapi_update,
+    parse_webhook,
     vapi_to_agent,
     vapi_to_call,
+    vapi_tool_response,
 )
 
 FX = pathlib.Path(__file__).parent / "fixtures" / "vapi"
+ASSISTANT = json.loads((FX / "assistant.json").read_text())
+PHONE_NUMBERS = json.loads((FX / "phone_numbers.json").read_text())
+TOOL_CALLS = json.loads((FX / "webhook_tool_calls.json").read_text())
 
 
 def test_voice_parsing() -> None:
@@ -169,3 +179,110 @@ def test_call_request_with_from_number() -> None:
         "customer": {"number": "+15550000000"},
         "phoneNumberId": "phone_sanitized000",
     }
+
+
+def test_tool_calls_nested_function_shape() -> None:
+    ev = parse_webhook(TOOL_CALLS)
+    assert isinstance(ev, ToolCall)
+    assert ev.name == "get_weather"
+    assert ev.arguments == {"location": "San Francisco", "unit": "celsius"}
+    assert ev.tool_call_id == "toolcall_sanitized000"
+
+
+def _tc(item: dict[str, Any]) -> ToolCall:
+    msg = {"type": "tool-calls", "call": {"id": "c"}, "toolCallList": [item]}
+    ev = parse_webhook({"message": msg})
+    assert isinstance(ev, ToolCall)
+    return ev
+
+
+def test_tool_calls_nested_string_arguments_decoded() -> None:
+    ev = _tc({"id": "t", "function": {"name": "n", "arguments": '{"a": 1}'}})
+    assert ev.arguments == {"a": 1}
+
+
+def test_tool_calls_flat_shape_still_supported() -> None:
+    ev = _tc({"id": "t", "name": "n", "arguments": {"a": 1}})
+    assert ev.name == "n" and ev.arguments == {"a": 1} and ev.tool_call_id == "t"
+
+
+def test_tool_calls_null_function_does_not_crash() -> None:
+    ev = _tc({"id": "t", "function": None})
+    assert ev.name == "" and ev.arguments == {}
+
+
+def test_vapi_to_agent_maps_function_tools_back() -> None:
+    data = {**ASSISTANT, "model": {**ASSISTANT["model"], "tools": [
+        {"type": "function", "function": {"name": "book", "description": "d",
+         "parameters": {"type": "object"}}, "server": {"url": "https://x/t"}},
+        {"type": "transferCall", "destinations": []}]}}
+    a = vapi_to_agent(data)
+    assert [t.name for t in a.tools] == ["book"] and a.tools[0].endpoint_url == "https://x/t"
+
+
+def _existing() -> dict[str, Any]:
+    return {"model": {"provider": "openai", "model": "gpt-4o", "temperature": 0.2,
+            "messages": [{"role": "system", "content": "old"},
+                         {"role": "assistant", "content": "hi"}],
+            "tools": [{"type": "transferCall"}]},
+            "voice": {"provider": "11labs", "voiceId": "old", "stability": 0.5},
+            "firstMessage": "keep me"}
+
+
+def test_merge_update_keeps_unmodelled_model_settings() -> None:
+    existing = _existing()
+    body = merge_vapi_update(existing, Agent(name="N", system_prompt="new", model="claude-sonnet-4",
+                                             voice="openai:alloy"))
+    assert body["model"]["temperature"] == 0.2
+    assert body["model"]["provider"] == "anthropic"
+    assert body["model"]["messages"][0] == {"role": "system", "content": "new"}
+    assert body["model"]["messages"][1]["role"] == "assistant"
+    assert body["model"]["tools"] == [{"type": "transferCall"}]
+    assert body["voice"] == {"provider": "openai", "voiceId": "alloy", "stability": 0.5}
+    assert "firstMessage" not in body
+    assert existing["model"]["messages"][0]["content"] == "old"
+
+
+def test_merge_update_replaces_function_tools_keeps_others() -> None:
+    existing = _existing()
+    existing["model"]["tools"] = [
+        {"type": "transferCall"},
+        {"type": "function", "function": {"name": "stale"}},
+    ]
+    from voxbridge.models import Tool
+
+    agent = Agent(name="N", system_prompt="p", model="gpt-4o", voice="openai:alloy",
+                  tools=[Tool(name="fresh", description="d", parameters={"type": "object"})],
+                  first_message="hello")
+    body = merge_vapi_update(existing, agent)
+    tools = body["model"]["tools"]
+    assert tools[0] == {"type": "transferCall"}
+    assert [t["function"]["name"] for t in tools[1:]] == ["fresh"]
+    assert body["firstMessage"] == "hello"
+
+
+def test_merge_update_inserts_system_message_when_missing() -> None:
+    existing = {"model": {"messages": [{"role": "assistant", "content": "hi"}]}}
+    body = merge_vapi_update(existing, Agent(name="N", system_prompt="sys", model="gpt-4o",
+                                             voice="openai:alloy"))
+    assert body["model"]["messages"] == [
+        {"role": "system", "content": "sys"},
+        {"role": "assistant", "content": "hi"},
+    ]
+
+
+def test_model_provider_gemini() -> None:
+    assert _model_provider("gemini-2.5-flash") == "google"
+
+
+def test_vapi_tool_response_string_and_object() -> None:
+    ev = ToolCall(name="n", tool_call_id="t1", provider="vapi")
+    assert vapi_tool_response(ev, "line1\nline2") == {
+        "results": [{"toolCallId": "t1", "result": "line1 line2"}]
+    }
+    assert vapi_tool_response(ev, {"ok": True})["results"][0]["result"] == '{"ok":true}'
+
+
+def test_find_phone_number_id_skips_entries_without_number() -> None:
+    assert find_phone_number_id(PHONE_NUMBERS, "+15550000001") == "pn_sanitized000"
+    assert find_phone_number_id(PHONE_NUMBERS, "+19999999999") is None

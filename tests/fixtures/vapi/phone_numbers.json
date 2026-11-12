@@ -1,0 +1,11 @@
+[
+  {
+    "id": "pn_sanitized000",
+    "number": "+15550000001",
+    "provider": "twilio"
+  },
+  {
+    "id": "pn_sanitized001",
+    "provider": "vapi"
+  }
+]

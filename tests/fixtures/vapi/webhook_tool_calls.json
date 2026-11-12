@@ -8,10 +8,13 @@
     "toolCallList": [
       {
         "id": "toolcall_sanitized000",
-        "name": "get_weather",
-        "arguments": {
-          "location": "San Francisco",
-          "unit": "celsius"
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "arguments": {
+            "location": "San Francisco",
+            "unit": "celsius"
+          }
         }
       }
     ],

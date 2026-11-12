@@ -6,6 +6,7 @@ unit-testable. Task 8 wires these into VapiProvider's HTTP calls.
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Any
 
@@ -17,7 +18,7 @@ from ..events import (
     TranscriptChunk,
     WebhookEvent,
 )
-from ..models import Agent, Call
+from ..models import Agent, Call, Tool
 from ._common import normalize_role
 
 _VOICE_PROVIDER_ALIASES = {"elevenlabs": "11labs"}
@@ -44,6 +45,8 @@ def _model_provider(model: str) -> str:
         return "openai"
     if model.startswith("claude"):
         return "anthropic"
+    if model.startswith("gemini"):
+        return "google"
     return "openai"
 
 
@@ -84,6 +87,37 @@ def agent_to_vapi(agent: Agent) -> dict[str, Any]:
     return out
 
 
+def merge_vapi_update(existing: dict[str, Any], agent: Agent) -> dict[str, Any]:
+    """Build a PATCH body that overlays `agent` on the `existing` assistant.
+
+    Keeps model/voice settings voxbridge does not model (temperature, stability,
+    non-function tools...). Does not mutate `existing`.
+    """
+    model = copy.deepcopy(existing.get("model") or {})
+    model["provider"] = _model_provider(agent.model)
+    model["model"] = agent.model
+    messages = model.get("messages") or []
+    system = {"role": "system", "content": agent.system_prompt}
+    for i, message in enumerate(messages):
+        if message.get("role") == "system":
+            messages[i] = system
+            break
+    else:
+        messages.insert(0, system)
+    model["messages"] = messages
+    if agent.tools:
+        kept = [t for t in model.get("tools") or [] if t.get("type") != "function"]
+        model["tools"] = kept + _vapi_tools(agent)
+
+    voice = copy.deepcopy(existing.get("voice") or {})
+    voice.update(_voice(agent.voice))
+
+    out: dict[str, Any] = {"name": agent.name, "model": model, "voice": voice}
+    if agent.first_message is not None:
+        out["firstMessage"] = agent.first_message
+    return out
+
+
 def vapi_to_agent(data: dict[str, Any]) -> Agent:
     """Map a Vapi Assistant payload to a voxbridge Agent, preserving raw."""
     model_block = data.get("model") or {}
@@ -99,6 +133,18 @@ def vapi_to_agent(data: dict[str, Any]) -> Agent:
     voice_id = voice_block.get("voiceId", "")
     voice = f"{voice_provider}:{voice_id}"
 
+    tools = [
+        Tool(
+            name=fn.get("name", ""),
+            description=fn.get("description", ""),
+            parameters=fn.get("parameters") or {},
+            endpoint_url=(entry.get("server") or {}).get("url"),
+        )
+        for entry in model_block.get("tools") or []
+        if entry.get("type") == "function"
+        for fn in [entry.get("function") or {}]
+    ]
+
     return Agent(
         id=data.get("id"),
         name=data.get("name", ""),
@@ -106,6 +152,7 @@ def vapi_to_agent(data: dict[str, Any]) -> Agent:
         model=model_block.get("model", ""),
         system_prompt=system_prompt,
         voice=voice,
+        tools=tools,
         raw=data,
     )
 
@@ -136,33 +183,57 @@ def call_request(agent_id: str, to_number: str, from_number: str | None) -> dict
     return out
 
 
+def _decode_args(value: Any) -> dict[str, Any]:
+    """Arguments arrive as a dict or a JSON string; anything undecodable -> {}."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+    return value if isinstance(value, dict) else {}
+
+
 def _first_tool_call(message: dict[str, Any]) -> dict[str, Any]:
     """Pull name/arguments/id from Vapi's tool-calls message.
 
-    Prefers the flat toolCallList shape ({id, name, arguments}); falls back to
-    the OpenAI-style toolWithToolCallList[].toolCall.function shape where
-    arguments is a JSON string.
+    toolCallList items are {id, type, function: {name, arguments}} (arguments a
+    dict or JSON string); a flat {id, name, arguments} item is also accepted.
+    Falls back to toolWithToolCallList[].toolCall.function.
     """
     flat = message.get("toolCallList") or []
     if flat:
         item = flat[0]
+        fn = item.get("function") or {}
         return {
             "id": item.get("id"),
-            "name": item.get("name", ""),
-            "arguments": item.get("arguments") or {},
+            "name": fn.get("name") or item.get("name") or "",
+            "arguments": _decode_args(fn.get("arguments") or item.get("arguments")),
         }
     nested = message.get("toolWithToolCallList") or []
     if nested:
-        tc = nested[0].get("toolCall", {})
-        fn = tc.get("function", {})
-        args = fn.get("arguments")
-        if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except json.JSONDecodeError:
-                args = {}
-        return {"id": tc.get("id"), "name": fn.get("name", ""), "arguments": args or {}}
+        tc = nested[0].get("toolCall") or {}
+        fn = tc.get("function") or {}
+        return {
+            "id": tc.get("id"),
+            "name": fn.get("name") or "",
+            "arguments": _decode_args(fn.get("arguments")),
+        }
     return {"id": None, "name": "", "arguments": {}}
+
+
+def vapi_tool_response(event: ToolCall, result: Any) -> dict[str, Any]:
+    """Build the webhook reply for a tool call; Vapi needs a single-line string result."""
+    text = result if isinstance(result, str) else json.dumps(result, separators=(",", ":"))
+    text = text.replace("\r", " ").replace("\n", " ")
+    return {"results": [{"toolCallId": event.tool_call_id, "result": text}]}
+
+
+def find_phone_number_id(numbers: list[dict[str, Any]], e164: str) -> str | None:
+    """Return the id of the phone number matching `e164`, skipping entries without a number."""
+    for entry in numbers:
+        if entry.get("number") == e164:
+            return entry.get("id")
+    return None
 
 
 def parse_webhook(payload: dict[str, Any]) -> WebhookEvent:
