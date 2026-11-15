@@ -1,4 +1,4 @@
-# voxbridge
+# voxbridge: one Python SDK for Vapi and Retell voice agents
 
 [![CI](https://github.com/Clufy/voxbridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Clufy/voxbridge/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/voxbridge-sdk.svg)](https://pypi.org/project/voxbridge-sdk/)
@@ -6,7 +6,7 @@
 [![Docs](https://img.shields.io/badge/docs-clufy.github.io%2Fvoxbridge-blue.svg)](https://clufy.github.io/voxbridge/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Clufy/voxbridge/blob/main/LICENSE)
 
-voxbridge is a Python SDK that puts one typed `VoiceClient` over the
+voxbridge is an open-source Python SDK for building AI voice agents and phone-call bots. It puts one typed `VoiceClient` over the
 [Vapi](https://vapi.ai) and [Retell](https://retellai.com) voice-agent
 platforms. Create agents, place outbound calls, verify and parse webhooks, and
 answer tool calls with the same code on either provider; switching is a config
@@ -169,6 +169,14 @@ and known differences.
 - [Documentation](https://clufy.github.io/voxbridge/)
 - [Changelog](https://github.com/Clufy/voxbridge/blob/main/CHANGELOG.md)
 - [Contributing](https://github.com/Clufy/voxbridge/blob/main/CONTRIBUTING.md)
+
+## Related projects
+
+By [Aquib Haq](https://github.com/Clufy) · [clufy.github.io](https://clufy.github.io/)
+
+- [spanguard](https://github.com/Clufy/spanguard): PII/PHI detection and redaction for Python, including streaming call transcripts.
+- [Sentinel](https://github.com/Clufy/Sentinel): AI compliance assistant for NIST 800-53, ISO 27001 and CIS Controls.
+- [claude-code-gateway](https://github.com/Clufy/claude-code-gateway): run Claude Code on any LLM through a Cloudflare Worker.
 
 ## License
 
