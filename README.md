@@ -1,3 +1,5 @@
+![voxbridge routing one VoiceClient to Vapi or Retell](https://raw.githubusercontent.com/Clufy/voxbridge/main/.github/assets/banner.gif)
+
 # voxbridge: one Python SDK for Vapi and Retell voice agents
 
 [![CI](https://github.com/Clufy/voxbridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Clufy/voxbridge/actions/workflows/ci.yml)
